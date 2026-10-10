@@ -1,3 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d1013">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="House Weather">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<style>html,body{margin:0;height:100%}img{max-width:100%}[hidden]{display:none!important}body{font-size:14px;font-family:system-ui,-apple-system,sans-serif}</style>
 <title>Yellow House Weather</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,7 +33,12 @@
 html, body { height: 100%; }
 body { background: #0d1013; color: var(--text); font-family: var(--body); overflow: hidden; -webkit-font-smoothing: antialiased; }
 #scene { position: fixed; inset: 0; }
-#scene canvas { display: block; width: 100%; height: 100%; }
+#scene canvas { display: block; width: 100%; height: 100%; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
+button, .card { touch-action: manipulation; }
+.btn svg { width: 16px; height: 16px; flex: none; }
+.btn { display: inline-flex; align-items: center; gap: 6px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 .card {
   position: fixed; top: calc(env(safe-area-inset-top, 0px) + 12px); left: 12px;
@@ -82,6 +100,9 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
   padding: 14px 16px 16px; display: grid; gap: 14px; align-content: start;
 }
+.panel[hidden] { display: none; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.panel-head .btn { min-height: 34px; padding: 0 14px; }
 .panel h2 { margin: 0; font-family: var(--num); font-weight: 600; font-size: 22px; letter-spacing: .02em; }
 .panel p.hint { margin: -8px 0 0; color: var(--muted); font-size: 12px; }
 .ctl { display: grid; gap: 6px; }
@@ -98,14 +119,26 @@ select { font: 13px var(--body); background: rgba(0,0,0,.35); color: var(--text)
 .sep { border-top: 1px solid var(--line); padding-top: 12px; }
 
 @media (max-width: 640px) {
-  .card { width: auto; right: 12px; padding: 10px 12px; }
-  .temp { font-size: 48px; }
-  .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .panel { top: auto; left: 12px; right: 12px; width: auto; max-height: 52vh; bottom: calc(env(safe-area-inset-bottom, 0px) + 64px); }
+  .card { width: auto; right: 12px; left: 10px; top: calc(env(safe-area-inset-top, 0px) + 10px); padding: 10px 12px; font-size: 12px; }
+  .card.mini { right: auto; }
+  .temp { font-size: 44px; }
+  .cond { font-size: 15px; }
+  .stats { gap: 6px 8px; margin-top: 8px; padding-top: 8px; }
+  .stats dd { font-size: 17px; }
+  .src { font-size: 11px; margin-top: 8px; }
+  .bar { left: 8px; right: 8px; gap: 6px; flex-wrap: nowrap; bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); }
+  .btn { padding: 0 12px; min-height: 40px; font-size: 12.5px; }
+  .seg button { padding: 0 11px; min-height: 34px; font-size: 12.5px; }
+  .btn .lbl-long { display: none; }
+  .panel { top: auto; left: 8px; right: 8px; width: auto; max-height: 55vh; max-height: 55dvh; bottom: calc(env(safe-area-inset-bottom, 0px) + 60px); padding: 12px 14px 14px; gap: 10px; }
+  .panel p.hint { font-size: 11.5px; }
+  input[type=range] { height: 30px; }
 }
+@media (max-width: 360px) { .seg button { padding: 0 8px; } .btn { padding: 0 10px; } }
 @media (prefers-reduced-motion: reduce) { .arr { transition: none; } }
 </style>
-
+</head>
+<body>
 <div id="scene" aria-label="3D view of the house with live weather. Drag to look around, pinch or scroll to zoom."></div>
 
 <section class="card" id="card" aria-live="polite" role="button" tabindex="0" aria-expanded="true" title="Tap to hide or show details">
@@ -132,12 +165,12 @@ select { font: 13px var(--body); background: rgba(0,0,0,.35); color: var(--text)
     <button type="button" id="mStudio" aria-pressed="false">Studio</button>
   </div>
   <button type="button" class="btn" id="btnPanel" aria-expanded="false" aria-controls="panel">Adjust</button>
-  <button type="button" class="btn" id="btnLights" aria-label="House lights">Lights: Auto</button>
-  <button type="button" class="btn" id="btnHome">Recenter</button>
+  <button type="button" class="btn" id="btnLights" aria-label="House lights: Auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg><span id="lightsLbl">Auto</span></button>
+  <button type="button" class="btn" id="btnHome" aria-label="Recenter view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg><span class="lbl-long">Recenter</span></button>
 </nav>
 
 <aside class="panel" id="panel" hidden aria-label="Studio weather controls">
-  <h2>Studio weather</h2>
+  <div class="panel-head"><h2>Studio weather</h2><button type="button" class="btn" id="btnClose">Done</button></div>
   <p class="hint">Moving any control switches to Studio. Tap Live to return to real conditions.</p>
   <div class="ctl"><div class="lab"><label for="sTime">Time of day</label><span id="vTime"></span></div><input type="range" id="sTime" min="0" max="24" step="0.25"></div>
   <div class="ctl"><div class="lab"><label for="sTemp">Temperature</label><span id="vTemp"></span></div><input type="range" id="sTemp" min="-10" max="110" step="1"></div>
@@ -253,6 +286,35 @@ const fmtHour = h => { const hh = Math.floor(h) % 24, mm = Math.round((h % 1) * 
 // =====================================================================
 // Renderer, scene, camera
 // =====================================================================
+// ---------------------------------------------------------------------
+// Property-bounded haze: everything past the road (front) and the back
+// fence fades into the horizon color, on top of the weather fog.
+// Rectangle = the lot plus the street; fade over FADE meters outside it.
+// ---------------------------------------------------------------------
+const LOT = { x0: -44, x1: 46, z0: -31, z1: 34, fade: 34 };
+THREE.ShaderChunk.fog_pars_vertex = '#ifdef USE_FOG\n varying float fogDepth;\n varying vec3 vFogWorld;\n#endif';
+THREE.ShaderChunk.fog_vertex = '#ifdef USE_FOG\n fogDepth = - mvPosition.z;\n vec3 fogRel = mvPosition.xyz - viewMatrix[3].xyz;\n vFogWorld = vec3(dot(viewMatrix[0].xyz, fogRel), dot(viewMatrix[1].xyz, fogRel), dot(viewMatrix[2].xyz, fogRel));\n#endif'; // world = transpose(R) * (view - t)
+THREE.ShaderChunk.fog_pars_fragment = `#ifdef USE_FOG
+ uniform vec3 fogColor; varying float fogDepth; varying vec3 vFogWorld;
+ #ifdef FOG_EXP2
+  uniform float fogDensity;
+ #else
+  uniform float fogNear; uniform float fogFar;
+ #endif
+#endif`;
+THREE.ShaderChunk.fog_fragment = `#ifdef USE_FOG
+ #ifdef FOG_EXP2
+  float fogFactor = 1.0 - exp( - fogDensity * fogDensity * fogDepth * fogDepth );
+ #else
+  float fogFactor = smoothstep( fogNear, fogFar, fogDepth );
+ #endif
+ vec2 lotC = vec2(${((LOT.x0 + LOT.x1) / 2).toFixed(1)}, ${((LOT.z0 + LOT.z1) / 2).toFixed(1)});
+ vec2 lotH = vec2(${((LOT.x1 - LOT.x0) / 2).toFixed(1)}, ${((LOT.z1 - LOT.z0) / 2).toFixed(1)});
+ float outside = length(max(abs(vFogWorld.xz - lotC) - lotH, 0.0));
+ fogFactor = max(fogFactor, smoothstep(0.0, ${LOT.fade.toFixed(1)}, outside));
+ gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );
+#endif`;
+
 const host = document.getElementById('scene');
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, LOW ? 1.6 : 2));
@@ -275,9 +337,11 @@ controls.screenSpacePanning = false;
 const HOME = { pos: new THREE.Vector3(3.5, 1.75, 30), tgt: new THREE.Vector3(0.5, 2.6, -1.5) };
 function homeForViewport() {
   const portrait = innerHeight > innerWidth;
-  return portrait ? { pos: new THREE.Vector3(5, 2.6, 42), tgt: new THREE.Vector3(1.5, 3.2, -1.5) } : HOME;
+  // phones: three-quarter view from the curb by the driveway, so the house fills a tall screen
+  return portrait ? { pos: new THREE.Vector3(15.5, 3.4, 21.5), tgt: new THREE.Vector3(-1.5, 2.4, -0.5) } : HOME;
 }
 { const h = homeForViewport(); camera.position.copy(h.pos); controls.target.copy(h.tgt); }
+window.__yh = { camera, controls, scene }; // handle for testing camera views
 
 // =====================================================================
 // Wind shader injection (shared by trees, leaves, grass; world-space gust fronts)
@@ -378,7 +442,7 @@ const roofTex = canvasTex(512, 512, (g, w, h) => {
   noise(g, w, h, 9000, .18); noise(g, w, h, 4000, .12, true);
 }, [1, 1]);
 const concreteTex = canvasTex(512, 512, (g, w, h) => {
-  g.fillStyle = '#bdb9b0'; g.fillRect(0, 0, w, h); noise(g, w, h, 14000, .12); noise(g, w, h, 6000, .1, true);
+  g.fillStyle = '#a8a49b'; g.fillRect(0, 0, w, h); noise(g, w, h, 14000, .12); noise(g, w, h, 6000, .1, true);
   g.fillStyle = 'rgba(60,58,52,.45)'; g.fillRect(0, 0, w, 3); g.fillRect(0, 0, 3, h);
   for (let i = 0; i < 30; i++) { g.fillStyle = `rgba(90,80,60,${Math.random() * .08})`; g.beginPath(); g.arc(Math.random() * w, Math.random() * h, 10 + Math.random() * 40, 0, 7); g.fill(); }
 }, [1, 1]);
@@ -662,9 +726,28 @@ flat([[10.1, -7.4], [15.9, -7.4], [15.9, 22.8], [17.0, 24.3], [9.0, 24.3], [10.1
 flat([[2.9, 2.85], [4.1, 2.85], [4.1, 4.0], [10.1, 4.0], [10.1, 5.2], [2.9, 5.2]], 0.02, M.concrete, 3);
 flat([[-200, 24.3], [200, 24.3], [200, 33], [-200, 33]], 0.015, M.asphalt, 6);
 box(-200, 9.0, 0, 0.12, 24.1, 24.45, M.concrete, 3); box(17.0, 200, 0, 0.12, 24.1, 24.45, M.concrete, 3);
-// privacy fence right of garage
-box(16.6, 30, 0, 1.85, -7.1, -6.95, M.fence, 2);
-for (let x = 17.5; x < 30; x += 2.4) box(x - 0.05, x + 0.05, 0, 1.9, -7.15, -6.9, M.fence, 2);
+// 6 ft wood privacy fence enclosing the back yard (continues from the run beside the garage in the photo)
+const FENCE_H = 1.85, railMat = new THREE.MeshStandardMaterial({ color: L('#7d6448'), roughness: 0.95 });
+function fenceRun(x0, z0, x1, z1, gateAt = null) {
+  const alongX = Math.abs(x1 - x0) > Math.abs(z1 - z0), len = alongX ? Math.abs(x1 - x0) : Math.abs(z1 - z0);
+  const a0 = alongX ? Math.min(x0, x1) : Math.min(z0, z1), c = alongX ? z0 : x0;
+  const seg = (s0, s1) => { if (s1 - s0 < 0.05) return; alongX ? box(s0, s1, 0.03, FENCE_H, c - 0.03, c + 0.03, M.fence, 2) : box(c - 0.03, c + 0.03, 0.03, FENCE_H, s0, s1, M.fence, 2); };
+  if (gateAt == null) seg(a0, a0 + len);
+  else { seg(a0, gateAt - 0.55); seg(gateAt + 0.55, a0 + len); // gate leaf, hung slightly proud
+    alongX ? box(gateAt - 0.52, gateAt + 0.52, 0.06, FENCE_H - 0.03, c + 0.04, c + 0.09, M.fence, 2) : box(c + 0.04, c + 0.09, 0.06, FENCE_H - 0.03, gateAt - 0.52, gateAt + 0.52, M.fence, 2); }
+  // back rails and posts (backyard side)
+  [0.35, FENCE_H - 0.3].forEach(y => alongX ? box(a0, a0 + len, y, y + 0.09, c - 0.08, c - 0.03, railMat) : box(c - 0.08, c - 0.03, y, y + 0.09, a0, a0 + len, railMat));
+  const n = Math.max(1, Math.round(len / 2.4));
+  for (let i = 0; i <= n; i++) { const s = a0 + len * i / n; alongX ? box(s - 0.045, s + 0.045, 0, FENCE_H + 0.06, c - 0.09, c + 0.0, railMat) : box(c - 0.09, c + 0.0, 0, FENCE_H + 0.06, s - 0.045, s + 0.045, railMat); }
+}
+fenceRun(16.45, -7.25, 20.5, -7.25);          // beside the garage, as in the photo
+fenceRun(20.5, -7.25, 20.5, -30);             // right side
+fenceRun(-16.5, -30, 20.5, -30);              // back line
+fenceRun(-16.5, -6.2, -16.5, -30);            // left side
+fenceRun(-16.5, -6.2, -10.05, -6.2, -13);     // left return to the house, with gate
+fenceRun(8.05, -8.6, 9.55, -8.6);             // short run between house and garage
+// back patio
+flat([[-2.5, -10.05], [4.5, -10.05], [4.5, -13.6], [-2.5, -13.6]], 0.03, M.concrete, 3);
 // mailbox
 box(8.6, 8.68, 0, 1.05, 23.4, 23.48, M.trim); box(8.45, 8.85, 1.05, 1.32, 23.2, 23.7, M.black);
 // street lights (dusk-to-dawn photocell, like the real ones)
@@ -724,17 +807,22 @@ function tree(o) {
 tree({ x: -3.6, z: 7.2, trunk: 5.2, r: 0.42, forks: 2, angle0: 22, len: 5.2, depth: 3, branch: 2, angle: 34, lift: 0.25, lenF: 0.74, per: 46, clump: 2.3, card: 1.5 });
 // round tree by the porch (kept green: looks evergreen in the photo)
 tree({ x: 5.7, z: 3.3, trunk: 1.9, r: 0.16, forks: 3, angle0: 40, len: 1.3, depth: 1, branch: 3, angle: 45, lift: 0.2, lenF: 0.8, per: 44, clump: 1.35, card: 1.0, ever: true, tone: 1 });
-// background tree line
+// back-yard shade trees (inside the fence)
+[[-11, -21, 1.1], [5.5, -24.5, 1.15], [16, -20, 0.9], [-4, -27, 0.8]].forEach(([x, z, s]) =>
+  tree({ x, z, trunk: 4.6 * s, r: 0.34 * s, forks: 2, angle0: 24, len: 4.2 * s, depth: 2, branch: 2, angle: 32, lift: 0.28, lenF: 0.78, per: LOW ? 30 : 40, clump: 2.6 * s, card: 2.0 * s }));
+// tree lines: behind the back fence, across the road, and beside the neighbors.
+// They sit in the haze band, so they fade with distance.
 const bg = [];
-for (let i = 0; i < (LOW ? 16 : 24); i++) {
-  let x, z;
-  if (i % 3 === 0) { x = rnd(-46, -16); z = rnd(-4, 20); if (x > -24 && z < -2) x -= 10; }
-  else { x = rnd(-48, 48); z = rnd(-44, -14); }
-  if (x > 8 && x < 18 && z > -18) z -= 10;
-  bg.push([x, z]);
-}
-bg.push([20, 6], [22, 14], [-14, 20]);
-bg.forEach(([x, z]) => tree({ x, z, trunk: rnd(4.5, 7.5), r: rnd(0.3, 0.5), forks: 2, angle0: 20, len: rnd(3.5, 5), depth: 2, branch: 2, angle: 30, lift: 0.3, lenF: 0.78, per: LOW ? 26 : 34, clump: rnd(2.4, 3.2), card: rnd(2.1, 2.8) }));
+const jit = (v, a) => v + rnd(-a, a);
+for (let x = -60; x <= 62; x += 7.5) { bg.push([jit(x, 2.5), jit(-35.5, 2.5)]); bg.push([jit(x + 3.7, 2.5), jit(-45, 4)]); }
+// across the road: kept clear of the default street-side camera (x ~ 0..10, z 30..44)
+for (let x = -58; x <= 60; x += 9) { if (Math.abs(x - 4) > 12) bg.push([jit(x, 2.5), jit(47, 2.5)]); bg.push([jit(x + 4.5, 3), jit(58, 4)]); }
+[[-47, -2], [-50, 12], [-46, 22], [-20, 18], [24, 6], [26, 15], [49, -4], [51, 10], [48, 22], [-30, -24], [33, -27]].forEach(p => bg.push(p));
+bg.forEach(([x, z]) => {
+  const far = Math.abs(z) > 38 || Math.abs(x) > 44;
+  tree({ x, z, trunk: rnd(4.5, 7.5), r: rnd(0.3, 0.5), forks: 2, angle0: 20, len: rnd(3.5, 5), depth: 2, branch: 2, angle: 30, lift: 0.3, lenF: 0.78,
+    per: far ? (LOW ? 16 : 22) : (LOW ? 24 : 32), clump: rnd(2.5, 3.3), card: far ? rnd(2.8, 3.4) : rnd(2.1, 2.8) });
+});
 add(new THREE.Mesh(THREE.BufferGeometryUtils.mergeBufferGeometries(barkGeos), M.bark), true, true);
 
 // leaf color by month (Chicago date)
@@ -761,25 +849,30 @@ const leafDepth = patch(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADe
 }
 
 // Grass blades
-const GRASS_N = LOW ? 16000 : 42000;
+const GRASS_N = LOW ? 22000 : 52000;
 const grassMat = patch(new THREE.MeshLambertMaterial({ side: THREE.DoubleSide }), { defs: { WIND_GRASS: '' }, white: WHITE.grass, key: 'grass' });
 const grass = (() => {
   const g = new THREE.PlaneGeometry(0.055, 0.36, 1, 3); g.translate(0, 0.18, 0);
   const p = g.attributes.position; for (let i = 0; i < p.count; i++) p.setX(i, p.getX(i) * (1 - p.getY(i) / 0.36 * 0.85));
   const im = new THREE.InstancedMesh(g, grassMat, GRASS_N);
   const excluded = (x, z) =>
-    (x > 9.7 && x < 16.3 && z < 24.6) || (x > -10.6 && x < 5.2 && z < 3.0) || (x > 5.0 && x < 8.4 && z < 0.7) ||
-    (x > 9.3 && x < 16.7 && z < -7) || (x > 2.8 && x < 10.3 && z > 3.9 && z < 5.3) || (x > 2.8 && x < 4.2 && z > 2.8 && z < 5.3) ||
-    z > 24.0 || (Math.hypot(x + 3.6, z - 7.2) < 0.55) || (Math.hypot(x - 5.7, z - 3.3) < 0.25) || (x > 16.5 && z < -6.8);
+    (x > 9.7 && x < 16.3 && z > -7.6 && z < 24.6) ||                       // driveway
+    (x > -10.6 && x < 5.2 && z > -10.5 && z < 3.0) || (x > 5.0 && x < 8.4 && z > -10.5 && z < 0.7) || // house + porch
+    (x > 9.3 && x < 16.7 && z > -15.4 && z < -7.0) ||                       // garage
+    (x > -2.6 && x < 4.6 && z > -13.7 && z < -10.0) ||                      // patio
+    (x > 2.8 && x < 10.3 && z > 3.9 && z < 5.3) || (x > 2.8 && x < 4.2 && z > 2.8 && z < 5.3) || // walk
+    z > 24.0 || (Math.hypot(x + 3.6, z - 7.2) < 0.55) || (Math.hypot(x - 5.7, z - 3.3) < 0.25) ||
+    (z < -6.0 && (x < -16.4 || x > 20.4)) || z < -29.9;                      // outside the back fence
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(), c = new THREE.Color();
   let n = 0, guard = 0;
   while (n < GRASS_N && guard++ < GRASS_N * 4) {
-    // denser near the street-facing lawn
-    const x = rnd(-30, 26), z = Math.random() < 0.8 ? rnd(-1, 24) : rnd(-12, 24);
+    // front lawn gets most blades; the fenced back yard gets the rest
+    const front = Math.random() < 0.68;
+    const x = front ? rnd(-30, 26) : rnd(-16.4, 20.4), z = front ? rnd(-6, 24) : rnd(-29.9, -6);
     if (excluded(x, z)) continue;
-    q.setFromAxisAngle(UPV, rnd(0, 6.28)); const s = rnd(0.6, 1.3); sc.set(rnd(0.8, 1.2), s, 1); pos.set(x, 0, z);
+    q.setFromAxisAngle(UPV, rnd(0, 6.28)); const s = rnd(0.5, 1.05); sc.set(rnd(0.8, 1.2), s, 1); pos.set(x, 0, z);
     m4.compose(pos, q, sc); im.setMatrixAt(n, m4);
-    c.setHSL(rnd(0.21, 0.27), rnd(0.38, 0.5), rnd(0.17, 0.26)).convertSRGBToLinear(); im.setColorAt(n, c); n++;
+    c.setHSL(rnd(0.2, 0.26), rnd(0.42, 0.55), rnd(0.24, 0.33)).convertSRGBToLinear(); im.setColorAt(n, c); n++; // close to the lawn texture so blades read as turf, not spikes
   }
   im.count = n; im.receiveShadow = true; im.frustumCulled = false; scene.add(im); return im;
 })();
@@ -875,25 +968,48 @@ function refreshEnv(key) {
 // =====================================================================
 // Precipitation and lightning
 // =====================================================================
-const RAIN_N = LOW ? 2600 : 6500;
-const rainPos = new Float32Array(RAIN_N * 6), rainData = new Float32Array(RAIN_N * 4);
-const rainGeo = new THREE.BufferGeometry(); rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3).setUsage(THREE.DynamicDrawUsage));
-const rainMat = new THREE.LineBasicMaterial({ color: 0xb8c6d4, transparent: true, opacity: 0.45, depthWrite: false });
-const rain = new THREE.LineSegments(rainGeo, rainMat); rain.frustumCulled = false; scene.add(rain);
+// Rain: GPU streaks. Each drop is a camera-facing quad stretched along its
+// fall velocity; position comes from time in the vertex shader, so thousands
+// of drops cost nothing on the CPU and stay visible on high-density phones.
+const RAIN_N = LOW ? 7000 : 16000, RAIN_BOX = 22, RAIN_H = 18;
+const rainGeo = new THREE.InstancedBufferGeometry();
+rainGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-0.5, 0, 0, 0.5, 0, 0, 0.5, 1, 0, -0.5, 1, 0]), 3));
+rainGeo.setIndex([0, 1, 2, 0, 2, 3]);
+{ const s = new Float32Array(RAIN_N * 4); for (let i = 0; i < RAIN_N; i++) s.set([Math.random(), Math.random(), Math.random(), rnd(0.85, 1.15)], i * 4); rainGeo.setAttribute('aSeed', new THREE.InstancedBufferAttribute(s, 4)); }
+rainGeo.instanceCount = 0;
+const rainU = { uFall: { value: 0 }, uDrift: { value: new THREE.Vector2() }, uCenter: { value: new THREE.Vector2() }, uWind: { value: new THREE.Vector2() },
+  uLen: { value: 0.55 }, uWidth: { value: 0.016 }, uColor: { value: new THREE.Color(0xc8d2dc) }, uAlpha: { value: 0.5 } };
+const rainMat = new THREE.ShaderMaterial({
+  uniforms: rainU, transparent: true, depthWrite: false, side: THREE.DoubleSide, // streak winding flips with wind/camera; never cull
+  vertexShader: `attribute vec4 aSeed; uniform float uFall, uLen, uWidth; uniform vec2 uDrift, uCenter, uWind; varying float vA; varying vec2 vUv;
+  void main(){
+    const float B = ${RAIN_BOX.toFixed(1)}; const float H = ${RAIN_H.toFixed(1)};
+    float speed = 9.0 * aSeed.w;
+    float y = H - mod(aSeed.z * H + uFall * speed, H);
+    vec2 xz = mod(aSeed.xy * 2.0 * B + uDrift - (uCenter - B), 2.0 * B) + uCenter - B;
+    vec3 head = vec3(xz.x, y, xz.y);
+    vec3 along = normalize(vec3(uWind.x, -speed, uWind.y));
+    vec3 side = normalize(cross(along, normalize(cameraPosition - head)));
+    float d = distance(head, cameraPosition);
+    vec3 p = head - along * position.y * uLen * aSeed.w + side * position.x * uWidth * max(1.0, d * 0.09);
+    // (edges must ascend: reversed smoothstep is undefined in GLSL and renders nothing on some GPUs)
+    vA = (1.0 - smoothstep(B * 0.55, B, length(xz - uCenter))) * smoothstep(0.4, 1.4, d) * smoothstep(0.0, 0.6, y);
+    vUv = vec2(position.x + 0.5, position.y);
+    gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+  }`,
+  fragmentShader: `uniform vec3 uColor; uniform float uAlpha; varying float vA; varying vec2 vUv;
+  void main(){ float a = uAlpha * vA * (1.0 - vUv.y * 0.85) * (1.0 - abs(vUv.x * 2.0 - 1.0)); if (a < 0.004) discard; gl_FragColor = vec4(uColor, a); }`,
+});
+const rain = new THREE.Mesh(rainGeo, rainMat); rain.frustumCulled = false; rain.renderOrder = 5; scene.add(rain);
 const SNOW_N = LOW ? 2500 : 6000;
 const snowPos = new Float32Array(SNOW_N * 3), snowSeed = new Float32Array(SNOW_N);
 const snowGeo = new THREE.BufferGeometry(); snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3).setUsage(THREE.DynamicDrawUsage));
 const snowMat = new THREE.PointsMaterial({ map: dotTex, size: 0.09, transparent: true, depthWrite: false, color: 0xffffff, opacity: 0.9 });
 const snow = new THREE.Points(snowGeo, snowMat); snow.frustumCulled = false; scene.add(snow);
 const AREA = 36, TOPY = 26;
-function spawnDrop(i, anyY) {
-  const c = controls.target;
-  rainData[i * 4] = c.x + rnd(-AREA, AREA); rainData[i * 4 + 1] = anyY ? rnd(0, TOPY) : TOPY + rnd(0, 4); rainData[i * 4 + 2] = c.z + rnd(-AREA, AREA); rainData[i * 4 + 3] = rnd(8.5, 10.5);
-}
 function spawnFlake(i, anyY) {
   const c = controls.target; snowPos[i * 3] = c.x + rnd(-AREA, AREA); snowPos[i * 3 + 1] = anyY ? rnd(0, TOPY) : TOPY + rnd(0, 3); snowPos[i * 3 + 2] = c.z + rnd(-AREA, AREA); snowSeed[i] = Math.random() * 100;
 }
-for (let i = 0; i < RAIN_N; i++) spawnDrop(i, true);
 for (let i = 0; i < SNOW_N; i++) spawnFlake(i, true);
 const boltGeo = new THREE.BufferGeometry(); boltGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(40 * 3), 3));
 const bolt = new THREE.Line(boltGeo, new THREE.LineBasicMaterial({ color: 0xeef3ff, transparent: true, opacity: 0, fog: false, toneMapped: false }));
@@ -982,8 +1098,8 @@ async function refresh() {
   if (al.status === 'fulfilled') {
     alerts = (al.value.features || []).map(f => f.properties).filter(Boolean).map(p => ({ event: p.event, severe: /Extreme|Severe/.test(p.severity || ''), ends: p.ends || p.expires }));
   }
-  if (next) { live = next; liveSrc = src; }
-  else if (!live) { live = Object.assign({}, SAMPLE); liveSrc = { kind: 'sample' }; }
+  if (next) { if (!live || liveSrc.kind === 'sample') snapNext = true; live = next; liveSrc = src; }
+  else if (!live) { live = Object.assign({}, SAMPLE); liveSrc = { kind: 'sample' }; snapNext = true; }
   lastPoll = Date.now();
   if (mode === 'live') syncStudioFromLive();
   updateUI(true);
@@ -995,6 +1111,16 @@ setInterval(refresh, POLL_MS);
 // Simulation state (smoothed toward the target weather)
 // =====================================================================
 const cur = { wind: 6, gust: 10, dir: 200, cloud: 0.3, rain: 0, snow: 0, thunder: 0, visMi: 10, tempF: 66, wet: 0, cover: 0, frost: 0 };
+// first data (and Live/Studio switches) jump straight to the conditions; later updates ease in
+let snapNext = false;
+function snapToTarget(T) {
+  Object.assign(cur, { wind: T.wind, gust: Math.max(T.gust, T.wind), dir: T.dir, cloud: T.cloud, visMi: T.visMi, tempF: T.tempF,
+    rain: T.kind === 'rain' ? Math.max(0.12, T.inten) : 0, snow: T.kind === 'snow' ? Math.max(0.12, T.inten) : 0 });
+  cur.wet = cur.rain > 0.05 ? Math.min(1, 0.5 + cur.rain) : 0;
+  if (T.kind === 'snow' && T.tempF < 34) cur.cover = Math.max(cur.cover, 0.6);
+  if (T.snowIn > 0) cur.cover = clamp(T.snowIn / 1.5, 0, 1);
+  cur.frost = T.tempF <= 35 ? clamp((36 - T.tempF) / 8, 0, 1) * (1 - cur.cover) : 0;
+}
 const windState = { gT: 999, gA: 0 };
 function target() { return mode === 'studio' ? studio : (live || SAMPLE); }
 function simDate() { return mode === 'studio' ? dateAtChicagoHour(studio.hour) : new Date(); }
@@ -1041,7 +1167,7 @@ const $ = id => document.getElementById(id);
 const card = $('card');
 function setMode(m) {
   mode = m; $('mLive').setAttribute('aria-pressed', String(m === 'live')); $('mStudio').setAttribute('aria-pressed', String(m === 'studio'));
-  if (m === 'live') syncStudioFromLive();
+  if (m === 'live') { syncStudioFromLive(); snapNext = true; }
   updateUI(true);
 }
 function syncStudioFromLive() {
@@ -1088,16 +1214,18 @@ $('mStudio').addEventListener('click', () => { setMode('studio'); if ($('panel')
 $('btnLive2').addEventListener('click', () => setMode('live'));
 function togglePanel() { const p = $('panel'); p.hidden = !p.hidden; $('btnPanel').setAttribute('aria-expanded', String(!p.hidden)); if (innerWidth <= 640) card.classList.toggle('compact', !p.hidden); }
 $('btnPanel').addEventListener('click', togglePanel);
+$('btnClose').addEventListener('click', () => { if (!$('panel').hidden) togglePanel(); });
 function setMini(on) { card.classList.toggle('mini', on); card.setAttribute('aria-expanded', String(!on)); store.set('yh-mini', on ? '1' : '0'); }
-setMini(store.get('yh-mini') === '1');
+{ const saved = store.get('yh-mini'); setMini(saved == null ? innerWidth <= 640 : saved === '1'); } // phones start with the compact pill
 card.addEventListener('click', () => setMini(!card.classList.contains('mini')));
 card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setMini(!card.classList.contains('mini')); } });
 let houseLights = store.get('yh-lights') || 'auto', houseLightLevel = 0;
-const LIGHT_LABEL = { auto: 'Lights: Auto', on: 'Lights: On', off: 'Lights: Off' };
-$('btnLights').textContent = LIGHT_LABEL[houseLights] || LIGHT_LABEL.auto;
+const LIGHT_LABEL = { auto: 'Auto', on: 'On', off: 'Off' };
+function showLights() { const l = LIGHT_LABEL[houseLights] || 'Auto'; $('lightsLbl').textContent = l; $('btnLights').setAttribute('aria-label', 'House lights: ' + l); $('btnLights').title = 'House lights: ' + l; }
+showLights();
 $('btnLights').addEventListener('click', () => {
   houseLights = { auto: 'on', on: 'off', off: 'auto' }[houseLights] || 'auto';
-  store.set('yh-lights', houseLights); $('btnLights').textContent = LIGHT_LABEL[houseLights];
+  store.set('yh-lights', houseLights); showLights();
 });
 
 function updateUI(force) {
@@ -1138,7 +1266,9 @@ let envTimer = 0, fallSpawn = 0;
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
   const T = target();
-  const k = 1 - Math.exp(-dt * 1.4), kSlow = 1 - Math.exp(-dt * 0.5);
+  if (snapNext) { snapToTarget(T); snapNext = false; }
+  // Studio edits settle quickly; live updates every 4 min ease in gently
+  const k = 1 - Math.exp(-dt * (mode === 'studio' ? 3 : 1.4)), kSlow = 1 - Math.exp(-dt * (mode === 'studio' ? 1.6 : 0.5));
 
   // ---- smooth weather state
   cur.wind = lerp(cur.wind, T.wind, k); cur.gust = lerp(cur.gust, Math.max(T.gust, T.wind), k); cur.dir = angLerp(cur.dir, T.dir, k);
@@ -1210,7 +1340,8 @@ function frame() {
   sun.intensity = sunI; sun.color.copy(sunCol).convertSRGBToLinear();
   sun.position.copy(sun.target.position).addScaledVector(sunDir, 120);
   const hz = zen.clone().lerp(hor, 0.4).convertSRGBToLinear();
-  hemi.color.copy(hz); hemi.groundColor.set(0x4a4636).convertSRGBToLinear().multiplyScalar(0.6 + 0.4 * Lday);
+  // skylight desaturated toward neutral so shaded yellow siding stays yellow (not sage green)
+  hemi.color.copy(hz).lerp(new THREE.Color(0.8, 0.8, 0.78), 0.45 * Lday); hemi.groundColor.set(0x5a5040).convertSRGBToLinear().multiplyScalar(0.6 + 0.4 * Lday);
   // night floor: skyglow + moon keep the house readable at the darkest point
   hemi.intensity = 0.2 + 0.58 * Lday * (1 - 0.15 * ov) + 0.38 * night;
   if (Lday < 0.35) hemi.color.lerp(L('#7d8fbd'), 0.65 * (1 - Lday / 0.35));
@@ -1260,21 +1391,19 @@ function frame() {
   });
 
   // ---- rain
-  const rainCount = Math.round(RAIN_N * clamp(cur.rain, 0, 1));
-  rain.visible = rainCount > 0;
+  const rainCount = Math.round(RAIN_N * clamp(cur.rain * 1.1, 0, 1));
+  rainGeo.instanceCount = rainCount; rain.visible = rainCount > 0;
   if (rain.visible) {
-    const hx = downwind.x * vms * 0.85, hz2 = downwind.z * vms * 0.85, c = controls.target;
-    for (let i = 0; i < rainCount; i++) {
-      const o = i * 4; let x = rainData[o], y = rainData[o + 1], z = rainData[o + 2]; const sp = rainData[o + 3];
-      x += hx * dt; z += hz2 * dt; y -= sp * dt;
-      if (y < 0 || Math.abs(x - c.x) > AREA + 6 || Math.abs(z - c.z) > AREA + 6) { spawnDrop(i, false); x = rainData[o]; y = rainData[o + 1]; z = rainData[o + 2]; }
-      rainData[o] = x; rainData[o + 1] = y; rainData[o + 2] = z;
-      const len = 0.045 * (0.6 + cur.rain), j = i * 6;
-      rainPos[j] = x; rainPos[j + 1] = y; rainPos[j + 2] = z;
-      rainPos[j + 3] = x - hx * len; rainPos[j + 4] = y + sp * len; rainPos[j + 5] = z - hz2 * len;
-    }
-    rainGeo.setDrawRange(0, rainCount * 2); rainGeo.attributes.position.needsUpdate = true;
-    rainMat.color.copy(hor).convertSRGBToLinear().multiplyScalar(1.3 + Lday); rainMat.opacity = 0.25 + 0.3 * cur.rain;
+    const wx = downwind.x * vms * 0.85, wz = downwind.z * vms * 0.85, B2 = RAIN_BOX * 2;
+    rainU.uFall.value = (rainU.uFall.value + dt) % 3600;
+    rainU.uWind.value.set(wx, wz);
+    rainU.uDrift.value.set(((rainU.uDrift.value.x + wx * dt) % B2 + B2) % B2, ((rainU.uDrift.value.y + wz * dt) % B2 + B2) % B2);
+    // rain volume sits just in front of the camera, where drops are visible
+    camera.getWorldDirection(tmpV); tmpV.y = 0; if (tmpV.lengthSq() < 1e-4) tmpV.set(0, 0, -1); tmpV.normalize();
+    rainU.uCenter.value.set(camera.position.x + tmpV.x * RAIN_BOX * 0.55, camera.position.z + tmpV.z * RAIN_BOX * 0.55);
+    rainU.uLen.value = 0.35 + 0.35 * cur.rain;
+    rainU.uColor.value.copy(hor).lerp(new THREE.Color(1, 1, 1), 0.45).convertSRGBToLinear().multiplyScalar(0.55 + 0.75 * Lday + 0.6 * night); // at night drops catch street and porch light
+    rainU.uAlpha.value = 0.32 + 0.38 * cur.rain;
   }
   // ---- snow
   const snowCount = Math.round(SNOW_N * clamp(cur.snow, 0, 1));
@@ -1346,7 +1475,7 @@ function frame() {
 
 function resize() {
   const w = host.clientWidth, h = host.clientHeight;
-  renderer.setSize(w, h, false); camera.aspect = w / h; camera.fov = w < h ? 55 : 42; camera.updateProjectionMatrix();
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.fov = w < h ? 60 : 42; camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize); resize();
 
@@ -1355,3 +1484,5 @@ refresh();
 frame();
 })();
 </script>
+</body>
+</html>
