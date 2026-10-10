@@ -69,9 +69,9 @@ button, .card { touch-action: manipulation; }
 .card { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .card:focus-visible { outline: 2px solid var(--butter); outline-offset: 2px; }
 /* tapped away: shrinks to a small temperature pill; alerts stay visible */
-.card.mini { width: auto; right: auto; padding: 6px 14px 6px 12px; border-radius: 999px; }
+.card.mini { width: auto; right: auto; padding: 12px 20px; border-radius: 12px; }
 .card.mini .place, .card.mini .stats, .card.mini .src, .card.mini .feels { display: none; }
-.card.mini .now { margin: 0; gap: 8px; }
+.card.mini .now { margin: 0; gap: 12px; }
 .card.mini .temp { font-size: 28px; }
 .card.mini .cond { font-size: 13px; }
 .card.mini .alert { margin-top: 6px; padding: 5px 8px; }
@@ -347,13 +347,25 @@ window.__yh = { camera, controls, scene }; // handle for testing camera views
 // Wind shader injection (shared by trees, leaves, grass; world-space gust fronts)
 // =====================================================================
 const U = {
-  uDir: { value: new THREE.Vector2(0, 1) }, uV: { value: 0 }, uGx: { value: 0 }, uGT: { value: 999 }, uGA: { value: 0 },
+  uDir: { value: new THREE.Vector2(0, 1) }, uV: { value: 0 }, uGx: { value: 0 },
+  uGust: { value: [0, 1, 2, 3, 4, 5].map(() => new THREE.Vector4(0, 0, 1, 0)) }, // gust cells: x, z, radius, strength
   uFV: { value: 8 }, uP1: { value: 0 }, uP2: { value: 0 }, uP3: { value: 0 }, uTime: { value: 0 },
 };
 const WIND_HEAD = `
-uniform vec2 uDir; uniform float uV, uGx, uGT, uGA, uFV, uP1, uP2, uP3, uTime;
-float gustEnv(vec3 p){ float a = dot(p.xz, uDir); float g = uGT - (a + 80.0) / uFV; return g < 0.0 ? 0.0 : (g < 1.2 ? g / 1.2 : exp(-(g - 1.2) / 3.5)); }
-float windSpeedAt(vec3 p){ return uV + uGx * uGA * gustEnv(p); }
+uniform vec2 uDir; uniform float uV, uGx, uFV, uP1, uP2, uP3, uTime; uniform vec4 uGust[6];
+// gusts: up to six puffs drifting downwind, each an ellipse stretched along the wind
+float gustEnv(vec3 p){
+  float g = 0.0;
+  for (int i = 0; i < 6; i++) {
+    vec4 c = uGust[i];
+    if (c.w <= 0.0) continue;
+    vec2 d = p.xz - c.xy;
+    float a = dot(d, uDir), b = dot(d, vec2(-uDir.y, uDir.x));
+    g = max(g, c.w * exp(-(a * a / (2.6 * c.z * c.z) + b * b / (c.z * c.z))));
+  }
+  return g;
+}
+float windSpeedAt(vec3 p){ return uV + uGx * gustEnv(p); }
 float turbAt(vec3 p){ float a = dot(p.xz, uDir); float b = dot(p.xz, vec2(-uDir.y, uDir.x)); return sin(a * 0.35 - uP1 + b * 0.21) * 0.6 + sin(a * 1.1 - uP2 + b * 0.7) * 0.4; }
 `;
 const WIND_PROJECT = `
@@ -397,9 +409,34 @@ function patch(mat, { defs = null, white = null, key = '' } = {}) {
   return mat;
 }
 const WHITE = { grass: { value: 0 }, lawn: { value: 0 }, roof: { value: 0 }, drive: { value: 0 }, bush: { value: 0 } };
-function gustEnvAt(x, z) {
-  const a = x * U.uDir.value.x + z * U.uDir.value.y, g = U.uGT.value - (a + 80) / U.uFV.value;
-  return g < 0 ? 0 : g < 1.2 ? g / 1.2 : Math.exp(-(g - 1.2) / 3.5);
+function gustEnvAt(x, z) { // CPU twin of the shader's gustEnv (for falling leaves)
+  const dx = U.uDir.value.x, dz = U.uDir.value.y; let g = 0;
+  for (const c of U.uGust.value) {
+    if (c.w <= 0) continue;
+    const px = x - c.x, pz = z - c.y, a = px * dx + pz * dz, b = -px * dz + pz * dx;
+    g = Math.max(g, c.w * Math.exp(-(a * a / (2.6 * c.z * c.z) + b * b / (c.z * c.z))));
+  }
+  return g;
+}
+// live gust puffs: born upwind of the yard, ride the wind across it, then fade
+const gustCells = [];
+function updateGusts(dt, vms, excess, gf, dx, dz) {
+  const speed = Math.max(4, vms * 1.25), cx = 2, cz = 2; // yard center
+  const rate = (!reduceMotion && excess > 0.6) ? 0.12 + 0.45 * Math.min(gf, 1.5) : 0; // puffs per second
+  if (gustCells.length < 6 && Math.random() < dt * rate) {
+    const side = rnd(-26, 26), back = rnd(30, 42);
+    gustCells.push({ x: cx - dx * back - dz * side, z: cz - dz * back + dx * side, r: rnd(4.5, 10), peak: rnd(0.55, 1), age: 0, life: (back * 2) / speed });
+  }
+  for (let i = gustCells.length - 1; i >= 0; i--) {
+    const c = gustCells[i]; c.age += dt; c.x += dx * speed * dt; c.z += dz * speed * dt;
+    if (c.age > c.life) gustCells.splice(i, 1);
+  }
+  U.uGust.value.forEach((v, i) => {
+    const c = gustCells[i];
+    if (!c) { v.w = 0; return; }
+    const f = Math.min(1, c.age / 1.5, (c.life - c.age) / 2); // ease in and out
+    v.set(c.x, c.z, c.r, c.peak * Math.max(0, f));
+  });
 }
 
 // =====================================================================
@@ -664,13 +701,13 @@ function railRun(x0, z0, x1, z1) {
   beam(V(x0, FL + 0.08, z0), V(x1, FL + 0.08, z1), 0.06, 0.05);
   for (let i = 1; i < n; i++) { const t = i / n; balPos.push([lerp(x0, x1, t), lerp(z0, z1, t)]); }
 }
-railRun(-3.17, 2.3, -0.53, 2.3); railRun(-0.37, 2.3, 2.12, 2.3); railRun(-3.25, 0.1, -3.25, 2.22);
+railRun(-3.17, 2.3, -0.53, 2.3); railRun(-0.37, 2.3, 2.12, 2.3); railRun(2.28, 2.3, 4.72, 2.3); railRun(-3.25, 0.1, -3.25, 2.22); // railing closed across the front; entry is from the driveway end
 {
   const im = new THREE.InstancedMesh(balGeo, M.trim, balPos.length); const m4 = new THREE.Matrix4();
   balPos.forEach(([x, z], i) => { m4.makeTranslation(x, FL + 0.1, z); im.setMatrixAt(i, m4); });
   add(im);
 }
-box(2.35, 4.65, 0, 0.18, 2.45, 2.85, M.concrete, 2);
+box(4.95, 5.4, 0, 0.18, 1.15, 2.3, M.concrete, 2); // step down off the porch's driveway end
 // door, lantern, windows, shutters
 box(-2.33, -1.17, FL, 2.53, 0.0, 0.05, M.trim);
 plane(0.95, 2.05, -1.75, FL + 1.025, 0.06, M.door);
@@ -723,7 +760,7 @@ function flat(points, y, mat, scale) {
   const m = new THREE.Mesh(g, mat); m.receiveShadow = true; scene.add(m); return m;
 }
 flat([[10.1, -7.4], [15.9, -7.4], [15.9, 22.8], [17.0, 24.3], [9.0, 24.3], [10.1, 22.8]], 0.025, M.concrete, 3);
-flat([[2.9, 2.85], [4.1, 2.85], [4.1, 4.0], [10.1, 4.0], [10.1, 5.2], [2.9, 5.2]], 0.02, M.concrete, 3);
+flat([[5.4, 1.15], [10.1, 1.15], [10.1, 2.3], [5.4, 2.3]], 0.02, M.concrete, 3); // porch-to-driveway strip along the house front (no lawn walkway)
 flat([[-200, 24.3], [200, 24.3], [200, 33], [-200, 33]], 0.015, M.asphalt, 6);
 box(-200, 9.0, 0, 0.12, 24.1, 24.45, M.concrete, 3); box(17.0, 200, 0, 0.12, 24.1, 24.45, M.concrete, 3);
 // 6 ft wood privacy fence enclosing the back yard (continues from the run beside the garage in the photo)
@@ -860,7 +897,7 @@ const grass = (() => {
     (x > -10.6 && x < 5.2 && z > -10.5 && z < 3.0) || (x > 5.0 && x < 8.4 && z > -10.5 && z < 0.7) || // house + porch
     (x > 9.3 && x < 16.7 && z > -15.4 && z < -7.0) ||                       // garage
     (x > -2.6 && x < 4.6 && z > -13.7 && z < -10.0) ||                      // patio
-    (x > 2.8 && x < 10.3 && z > 3.9 && z < 5.3) || (x > 2.8 && x < 4.2 && z > 2.8 && z < 5.3) || // walk
+    (x > 4.9 && x < 10.2 && z > 1.05 && z < 2.4) ||                         // porch-to-driveway strip
     z > 24.0 || (Math.hypot(x + 3.6, z - 7.2) < 0.55) || (Math.hypot(x - 5.7, z - 3.3) < 0.25) ||
     (z < -6.0 && (x < -16.4 || x > 20.4)) || z < -29.9;                      // outside the back fence
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(), c = new THREE.Color();
@@ -1121,7 +1158,6 @@ function snapToTarget(T) {
   if (T.snowIn > 0) cur.cover = clamp(T.snowIn / 1.5, 0, 1);
   cur.frost = T.tempF <= 35 ? clamp((36 - T.tempF) / 8, 0, 1) * (1 - cur.cover) : 0;
 }
-const windState = { gT: 999, gA: 0 };
 function target() { return mode === 'studio' ? studio : (live || SAMPLE); }
 function simDate() { return mode === 'studio' ? dateAtChicagoHour(studio.hour) : new Date(); }
 
@@ -1295,13 +1331,11 @@ function frame() {
   const il = SC.illum(date);
   if (Math.abs(il.phase - moonPhaseDrawn) > 0.01) { drawMoon(il.phase); moonPhaseDrawn = il.phase; }
 
-  // ---- wind uniforms with traveling gust fronts
+  // ---- wind uniforms with scattered gust puffs (only when reported gusts exceed the steady wind)
   const vms = cur.wind * 0.447, gms = cur.gust * 0.447, excess = Math.max(0, gms - vms), gf = excess / Math.max(vms, 2);
   dirVec(cur.dir + 180, downwind);
-  const fv = Math.max(5, vms * 1.1);
-  windState.gT += dt;
-  if (!reduceMotion && excess > 0.8 && windState.gT > 160 / fv + 6 && Math.random() < dt * (0.05 + 0.2 * Math.min(gf, 1.5))) { windState.gT = 0; windState.gA = rnd(0.6, 1); }
-  U.uDir.value.set(downwind.x, downwind.z); U.uV.value = reduceMotion ? vms * 0.6 : vms; U.uGx.value = excess; U.uGT.value = windState.gT; U.uGA.value = windState.gA; U.uFV.value = fv;
+  updateGusts(dt, vms, excess, gf, downwind.x, downwind.z);
+  U.uDir.value.set(downwind.x, downwind.z); U.uV.value = reduceMotion ? vms * 0.6 : vms; U.uGx.value = excess;
   U.uP1.value += dt * (0.8 + vms * 0.12); U.uP2.value += dt * (1.5 + vms * 0.25); U.uP3.value += dt * (0.5 + vms * 0.04); U.uTime.value = t;
 
   // ---- sky colors
@@ -1444,7 +1478,7 @@ function frame() {
     falling.forEach((f, i) => {
       if (!f.alive) return;
       if (f.p.y > 0.03) {
-        const ws = (vms + excess * windState.gA * gustEnvAt(f.p.x, f.p.z)) * Math.min(1, f.p.y / 3 + 0.3);
+        const ws = (vms + excess * gustEnvAt(f.p.x, f.p.z)) * Math.min(1, f.p.y / 3 + 0.3);
         f.v.x = lerp(f.v.x, downwind.x * ws * 0.8 + Math.sin(t * f.w + i) * 0.5, dt * 2);
         f.v.z = lerp(f.v.z, downwind.z * ws * 0.8 + Math.cos(t * f.w + i) * 0.5, dt * 2);
         f.v.y = -0.9 + Math.sin(t * f.w * 1.3 + i) * 0.35;
