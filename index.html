@@ -151,7 +151,12 @@ select { font: 13px var(--body); background: rgba(0,0,0,.35); color: var(--text)
 .play { width: 38px; height: 38px; border-radius: 10px; border: 0; background: var(--butter); color: #1d1a0e; display: grid; place-items: center; cursor: pointer; flex: none; }
 .play svg { width: 18px; height: 18px; }
 #rTime { font-family: var(--num); font-size: 17px; min-width: 70px; font-variant-numeric: tabular-nums; }
-#rSlider { flex: 1; min-width: 0; }
+.track { position: relative; flex: 1; min-width: 0; padding-top: 14px; }
+.track input { width: 100%; display: block; }
+.track span { position: absolute; top: 0; font-size: 10px; letter-spacing: .04em; color: var(--muted); transform: translateX(-50%); }
+.track .tick-l { left: 10px; } .track .tick-r { left: calc(100% - 10px); } .track .tick-now { left: 50%; color: var(--text); font-weight: 700; }
+.track .tick-now::after { content: ""; position: absolute; left: 50%; top: 13px; width: 2px; height: 22px; margin-left: -1px; background: var(--text); opacity: .5; border-radius: 1px; }
+.scrub.future #rTime { color: var(--butter); }
 .legend { display: flex; align-items: center; gap: 8px; background: var(--glass-strong); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; font-size: 11px; color: var(--muted); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
 .legend i { width: 120px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #04e9e7, #019ff4, #02fd02, #01c501, #fdf802, #e5bc00, #fd9500, #fd0000, #bc0000, #f800fd); }
 .radar-note { position: absolute; z-index: 1000; left: 50%; top: 45%; transform: translate(-50%, -50%); max-width: min(320px, calc(100vw - 48px)); margin: 0; text-align: center; background: var(--glass-strong); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; font-size: 13px; }
@@ -237,10 +242,10 @@ body.radar-on .card, body.radar-on .bar { opacity: 0; pointer-events: none; tran
   </div>
   <p class="radar-note" id="rNote" hidden>Map tiles can’t load in this viewer. Open the GitHub Pages link to see live radar.</p>
   <div class="radar-bottom">
-    <div class="scrub">
+    <div class="scrub" id="scrub">
       <button type="button" class="play" id="rPlay" aria-label="Pause loop"><svg viewBox="0 0 24 24" aria-hidden="true"><path id="rPlayIcon" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/></svg></button>
-      <span id="rTime">--</span>
-      <input type="range" id="rSlider" min="0" max="10" step="1" value="10" aria-label="Radar time">
+      <span id="rTime">Now</span>
+      <div class="track"><span class="tick-l">−2h</span><span class="tick-now">Now</span><span class="tick-r">+2h</span><input type="range" id="rSlider" min="0" max="16" step="1" value="8" aria-label="Radar time, 2 hours past to 2 hours ahead"></div>
     </div>
     <div class="seg" role="group" aria-label="Radar view"><button type="button" id="vUS" aria-pressed="false">US</button><button type="button" id="vLocal" aria-pressed="true">Local</button></div>
     <div class="legend" aria-hidden="true"><span>Light</span><i></i><span>Heavy</span></div>
@@ -1250,24 +1255,56 @@ addEventListener('keydown', e => {
 });
 
 // =====================================================================
-// Radar: camera lifts out of the yard, then a live NEXRAD map takes over
-// Tiles: NOAA NEXRAD base reflectivity composite (n0q) via Iowa Environmental
-// Mesonet, 5-minute steps for the last 50 minutes; CARTO dark base map.
+// Radar: camera lifts out of the yard, then a live radar map takes over.
+// Timeline runs 2 h back -> Now (middle) -> 2 h ahead in 15-minute steps:
+//   -120..-60 min  NEXRAD archive, Iowa Environmental Mesonet WMS-T (time-enabled)
+//   -45..-15 min   IEM recent-scan tiles (nexrad-n0q-mXXm)
+//   0              latest NEXRAD composite
+//   +15..+120 min  NOAA HRRR simulated reflectivity forecast (IEM, same color scale)
 // =====================================================================
-const RADAR_STEPS = [50, 45, 40, 35, 30, 25, 20, 15, 10, 5, 0]; // minutes ago
-const IEM = m => `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913${m ? '-m' + String(m).padStart(2, '0') + 'm' : ''}/{z}/{x}/{y}.png`;
+const STEP = 15, SPAN = 120;
+const OFFSETS = []; for (let m = -SPAN; m <= SPAN; m += STEP) OFFSETS.push(m);
+const NOW_I = OFFSETS.indexOf(0);
+const TILE = 'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/';
+const RADAR_ATTR = 'Radar: NOAA NEXRAD &amp; HRRR via <a href="https://mesonet.agron.iastate.edu/" target="_blank" rel="noopener">Iowa Env. Mesonet</a>';
 const Lf = window.L; // Leaflet global (the name L is taken by the color helper above)
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const byId = id => document.getElementById(id);
-let map = null, radarLayers = [], rIdx = RADAR_STEPS.length - 1, rTimer = null, rPlaying = !reduceMotion, radarState = 'closed', radarStamp = 0, framesAdded = false;
+const pad = (n, w = 2) => String(n).padStart(w, '0');
+const utcStamp = d => `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}`;
+let map = null, radarLayers = [], rIdx = NOW_I, rTimer = null, rPlaying = !reduceMotion, radarState = 'closed', framesAdded = false;
+let baseTime = 0, hrrrInit = null, hrrrFetched = 0, frameOk = [];
 const R_OPACITY = 0.78;
 let radarSeq = 0;
-function radarLayer(i) {
-  return Lf.tileLayer(IEM(RADAR_STEPS[i]) + '?v=' + radarStamp, { opacity: i === rIdx ? R_OPACITY : 0, maxNativeZoom: 10, maxZoom: 13.5, zIndex: 400, pane: 'radar',
-    attribution: 'Radar: NOAA NEXRAD via <a href="https://mesonet.agron.iastate.edu/" target="_blank" rel="noopener">Iowa Env. Mesonet</a>' });
+async function loadHrrrInit() { // latest HRRR run the IEM has processed
+  if (Date.now() - hrrrFetched < 10 * 60000) return;
+  hrrrFetched = Date.now();
+  try {
+    const j = await (await fetch('https://mesonet.agron.iastate.edu/data/gis/images/4326/hrrr/refd_1080.json', { cache: 'no-store' })).json();
+    const t = Date.parse(j.model_init_utc); if (!isNaN(t)) hrrrInit = new Date(t);
+  } catch (e) { /* future frames stay unavailable */ }
+}
+function frameLayer(i) {
+  const off = OFFSETS[i], opts = { opacity: i === rIdx ? R_OPACITY : 0, maxNativeZoom: 10, maxZoom: 16, pane: 'radar', attribution: RADAR_ATTR };
+  let layer;
+  if (off === 0) layer = Lf.tileLayer(TILE + 'nexrad-n0q-900913/{z}/{x}/{y}.png?v=' + baseTime, opts);
+  else if (off < 0 && -off <= 55) layer = Lf.tileLayer(TILE + `nexrad-n0q-900913-m${pad(-off)}m/{z}/{x}/{y}.png?v=` + baseTime, opts);
+  else if (off < 0) {
+    const t = new Date(baseTime + off * 60000).toISOString().slice(0, 19) + 'Z';
+    layer = Lf.tileLayer.wms('https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0q-t.cgi', Object.assign({ layers: 'nexrad-n0q-wmst', format: 'image/png', transparent: true, version: '1.1.1', time: t, tileSize: 512 }, opts));
+  } else {
+    if (!hrrrInit) return null;
+    const fmin = Math.round((baseTime + off * 60000 - hrrrInit.getTime()) / 60000 / 15) * 15;
+    if (fmin < 0 || fmin > 1080) return null;
+    layer = Lf.tileLayer(TILE + `hrrr::REFD-F${pad(fmin, 4)}-${utcStamp(hrrrInit)}/{z}/{x}/{y}.png`, opts);
+  }
+  let ok = 0, bad = 0; frameOk[i] = true;
+  layer.on('tileload', () => { ok++; frameOk[i] = true; });
+  layer.on('tileerror', () => { if (++bad >= 6 && !ok) frameOk[i] = false; }); // a feed that fails is skipped in the loop
+  return layer;
 }
 function initMap() {
-  map = Lf.map('map', { zoomControl: false, center: [LAT, LON], zoom: 16, minZoom: 3, maxZoom: 13.5, zoomSnap: 0.25 });
+  map = Lf.map('map', { zoomControl: false, center: [LAT, LON], zoom: 16, minZoom: 3, maxZoom: 16, zoomSnap: 0.25 });
   map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>'); // credits sit along the bottom edge, under the controls
   map.createPane('basemap').style.zIndex = 200; map.getPane('basemap').classList.add('basemap-dark');
   map.createPane('radar').style.zIndex = 400;
@@ -1290,9 +1327,18 @@ function initMap() {
   setTimeout(() => { if (!loaded) byId('rNote').hidden = false; }, 8000);
   loadStateBorders();
   Lf.marker([LAT, LON], { icon: Lf.divIcon({ className: '', html: '<div class="home-dot"></div>', iconSize: [14, 14], iconAnchor: [7, 7] }), keyboard: false, interactive: false, pane: 'markerPane' }).addTo(map);
-  radarStamp = Math.floor(Date.now() / 300000);
-  radarLayers = RADAR_STEPS.map(() => null);
-  radarLayers[rIdx] = radarLayer(rIdx).addTo(map); // latest frame shows during the zoom-out
+  // any touch, drag or wheel on the map cancels automatic camera moves, so your zoom is never yanked back
+  ['touchstart', 'mousedown', 'wheel'].forEach(ev => map.getContainer().addEventListener(ev, () => { radarSeq++; map.stop(); }, { passive: true }));
+  buildFrames(false);
+}
+function buildFrames(all) { // (re)create the timeline layers; only Now loads until the map settles
+  radarLayers.forEach(l => l && map.removeLayer(l));
+  baseTime = Math.floor(Date.now() / 300000) * 300000;
+  frameOk = OFFSETS.map(() => true);
+  radarLayers = OFFSETS.map((_, i) => (all || i === NOW_I) ? frameLayer(i) : null);
+  radarLayers.forEach(l => l && l.addTo(map));
+  framesAdded = all;
+  showFrame(rIdx);
 }
 // State outlines from the US Census-derived us-atlas file, drawn above the radar
 async function loadStateBorders() {
@@ -1312,34 +1358,42 @@ const CONUS = [[24.4, -125.0], [49.4, -66.9]];
 function viewUS(duration) { setView('us'); map.flyToBounds(CONUS, { duration: reduceMotion ? 0.01 : duration, padding: [16, 16] }); }
 function viewLocal(duration) { setView('local'); map.flyTo([LAT, LON], innerWidth < 640 ? 8.5 : 9, { duration: reduceMotion ? 0.01 : duration }); }
 function setView(v) { byId('vUS').setAttribute('aria-pressed', String(v === 'us')); byId('vLocal').setAttribute('aria-pressed', String(v === 'local')); }
-function addFrames() { // older frames load once the map settles, so the zoom-out stays smooth
+async function addFrames() { // past and forecast frames load once the map settles, so the zoom-out stays smooth
   if (framesAdded) return; framesAdded = true;
-  radarLayers.forEach((l, i) => { if (!l) radarLayers[i] = radarLayer(i).addTo(map); });
+  await loadHrrrInit();
+  radarLayers.forEach((l, i) => { if (!l) { const nl = frameLayer(i); if (nl) { radarLayers[i] = nl.addTo(map); } } });
+  showFrame(rIdx);
 }
-function refreshRadarLayers() { // new 5-minute scan available: rebuild with fresh URLs
-  const stamp = Math.floor(Date.now() / 300000);
-  if (!map || stamp === radarStamp) return;
-  radarStamp = stamp;
-  radarLayers.forEach(l => l && map.removeLayer(l));
-  radarLayers = RADAR_STEPS.map((_, i) => radarLayer(i).addTo(map));
-  framesAdded = true;
+async function refreshRadarLayers() { // a new 5-minute scan exists: rebuild the timeline around the new Now
+  if (!map || Math.floor(Date.now() / 300000) * 300000 === baseTime) return;
+  await loadHrrrInit();
+  buildFrames(true);
 }
-function frameLabel(i) { return fmtTime(new Date(Math.floor((Date.now() - RADAR_STEPS[i] * 60000) / 300000) * 300000)); }
+const dur = m => { const h = Math.floor(m / 60), r = m % 60; return [h ? h + ' h' : '', r ? r + ' min' : ''].filter(Boolean).join(' '); };
+const usable = i => !!radarLayers[i] && frameOk[i] !== false;
 function showFrame(i) {
   rIdx = i;
+  const off = OFFSETS[i], t = new Date(baseTime + off * 60000);
   radarLayers.forEach((l, j) => l && l.setOpacity(j === i ? R_OPACITY : 0));
-  byId('rTime').textContent = frameLabel(i);
+  byId('rTime').textContent = off === 0 ? 'Now' : fmtTime(t);
   byId('rSlider').value = String(i);
-  byId('rStamp').textContent = i === RADAR_STEPS.length - 1 ? 'Latest scan · NEXRAD reflectivity' : `${RADAR_STEPS[i]} min ago · NEXRAD reflectivity`;
+  byId('scrub').classList.toggle('future', off > 0);
+  byId('rStamp').textContent = off === 0 ? 'Now · NEXRAD radar'
+    : off < 0 ? `${dur(-off)} ago · NEXRAD radar`
+    : (radarLayers[i] ? `In ${dur(off)} · HRRR forecast` : 'Forecast unavailable right now');
 }
 let holdTicks = 0;
 function stopLoop() { if (rTimer) clearInterval(rTimer); rTimer = null; }
-function startLoop() {
+function startLoop() { // -2 h ... Now (brief hold) ... +2 h (hold), then again
   stopLoop(); if (!rPlaying) return;
   rTimer = setInterval(() => {
-    if (rIdx === RADAR_STEPS.length - 1 && holdTicks++ < 4) return; // linger on the latest scan
-    holdTicks = 0; showFrame((rIdx + 1) % RADAR_STEPS.length);
-  }, 550);
+    if (rIdx === NOW_I && holdTicks++ < 3) return;
+    if (rIdx === OFFSETS.length - 1 && holdTicks++ < 5) return;
+    holdTicks = 0;
+    let n = rIdx;
+    for (let k = 0; k < OFFSETS.length; k++) { n = (n + 1) % OFFSETS.length; if (usable(n)) break; }
+    showFrame(n);
+  }, 600);
 }
 function setPlaying(p) {
   rPlaying = p; byId('rPlay').setAttribute('aria-label', p ? 'Pause loop' : 'Play loop');
@@ -1357,23 +1411,21 @@ async function openRadar() {
   flyTo(new THREE.Vector3(tx + 4, 700, tz + 140), new THREE.Vector3(tx, 0, tz), reduceMotion ? 0.3 : 2.0); // straight up out of the yard
   await sleep(reduceMotion ? 200 : 1300);
   const el = byId('radar'); el.hidden = false;
-  if (!map) initMap(); else { map.setView([LAT, LON], 16, { animate: false }); refreshRadarLayers(); }
+  rIdx = NOW_I;
+  if (!map) initMap(); else { map.setView([LAT, LON], 16, { animate: false }); await refreshRadarLayers(); showFrame(NOW_I); }
   map.invalidateSize();
-  showFrame(RADAR_STEPS.length - 1);
   requestAnimationFrame(() => el.classList.add('show'));
   await sleep(reduceMotion ? 100 : 850);
   if (radarState !== 'opening') return;
   radarState = 'open';
-  // way out to the whole country, a beat to take it in, then back down to Collierville
-  const my = ++radarSeq; // a US/Local tap mid-sequence cancels the rest of it
+  // pull back from the house to the local radar view (US is one tap away)
+  radarSeq++;
   map.once('moveend', async () => {
-    if (radarState !== 'open' || my !== radarSeq) return;
-    await sleep(reduceMotion ? 0 : 1600);
-    if (radarState !== 'open' || my !== radarSeq) return;
-    map.once('moveend', () => { if (radarState === 'open') { addFrames(); setPlaying(rPlaying); } });
-    viewLocal(2.6);
+    await addFrames();
+    if (radarState !== 'open') return;
+    showFrame(0); setPlaying(rPlaying); // start the loop 2 h back
   });
-  viewUS(3.2);
+  viewLocal(2.6);
 }
 async function closeRadar() {
   if (radarState !== 'open') return;
@@ -1389,11 +1441,13 @@ async function closeRadar() {
 }
 byId('btnRadar').addEventListener('click', openRadar);
 byId('btnBack').addEventListener('click', closeRadar);
-byId('vUS').addEventListener('click', () => { if (radarState === 'open') { radarSeq++; addFrames(); setPlaying(rPlaying); viewUS(1.8); } });
-byId('vLocal').addEventListener('click', () => { if (radarState === 'open') { radarSeq++; addFrames(); setPlaying(rPlaying); viewLocal(1.8); } });
+byId('vUS').addEventListener('click', () => { if (radarState === 'open') { radarSeq++; addFrames().then(() => setPlaying(rPlaying)); viewUS(1.8); } });
+byId('vLocal').addEventListener('click', () => { if (radarState === 'open') { radarSeq++; addFrames().then(() => setPlaying(rPlaying)); viewLocal(1.8); } });
+// stop iOS from zooming the whole page when a pinch overshoots the map
+['gesturestart', 'gesturechange'].forEach(ev => document.addEventListener(ev, e => e.preventDefault(), { passive: false }));
 byId('rPlay').addEventListener('click', () => setPlaying(!rPlaying));
 byId('rSlider').addEventListener('input', e => { setPlaying(false); addFrames(); showFrame(+e.target.value); });
-setInterval(() => { if (radarState === 'open') { refreshRadarLayers(); showFrame(rIdx); } }, 60000);
+setInterval(() => { if (radarState === 'open') refreshRadarLayers(); }, 60000);
 
 // =====================================================================
 // UI
