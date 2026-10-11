@@ -824,8 +824,45 @@ windowAt(6.3, 0, 0.95, 1.45, 1.1);
   [-1, 1].forEach(s => plane(0.34, 1.8, x + s * 0.65, 0.95 + 0.9, 1.54, M.shutter));
   box(x - 0.5, x + 0.5, 0.89, 0.95, 1.5, 1.6, M.trim);
 });
-// chimney
-box(0.8, 2.0, 4.0, 6.5, -6.6, -5.4, M.chimney); box(0.72, 2.08, 6.5, 6.62, -6.68, -5.32, M.found);
+// chimney: yellow siding chase, white corner trim, black metal cap and flue (back slope)
+box(-0.4, 1.0, 3.4, 6.5, -8.9, -7.5, M.siding, SIDING_SCALE);
+[[-0.4, -8.9], [1.0, -8.9], [-0.4, -7.5], [1.0, -7.5]].forEach(([x, z]) => box(x - 0.06, x + 0.06, 3.4, 6.5, z - 0.06, z + 0.06, M.trim));
+box(-0.48, 1.08, 6.5, 6.6, -8.98, -7.42, M.trim);
+box(-0.3, 0.9, 6.6, 6.68, -8.8, -7.6, M.black);
+{ const flue = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.32, 12), M.black); flue.position.set(0.3, 6.84, -8.2); add(flue); }
+
+// right gable end (driveway side): louvered vent, double window, meters, bollards
+plane(1.5, 0.75, 8.48, 4.55, -5, M.vent, Math.PI / 2);
+plane(1.25, 1.35, 8.03, 1.1 + 0.675, -6.6, M_WIN, Math.PI / 2);
+box(8.0, 8.1, 1.0, 2.5, -7.32, -5.88, M.trim); box(8.0, 8.1, 1.04, 1.1, -7.32, -5.88, M.trim);
+box(8.0, 8.2, 0.92, 1.62, -4.95, -4.45, toon({ color: L('#efe3a6') }));                    // electric meter box
+box(8.0, 8.26, 0.25, 0.75, -3.25, -2.85, toon({ color: L('#9aa3a8') }));                    // gas meter
+{ const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.9, 8), toon({ color: L('#9aa3a8') })); pipe.position.set(8.15, 0.45, -2.75); add(pipe); }
+[-3.7, -2.2].forEach(z => { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 1.05, 12), toon({ color: L('#d9dcd8') })); b.position.set(8.75, 0.52, z); add(b); });
+// white gutters and downspouts
+const gutter = (x0, x1, z, y) => box(x0, x1, y - 0.14, y, z - 0.08, z + 0.08, M.trim);
+gutter(-6, 8.45, -10.6, 2.98);
+[[8.12, 0.12], [8.12, -10.12], [-10.12, -10.12], [-10.12, 1.62], [-3.38, 1.62]].forEach(([x, z]) => box(x - 0.05, x + 0.05, 0.1, 2.95, z - 0.05, z + 0.05, M.trim));
+
+// screened back porch: slab, siding knee wall, white posts, screens, shed roof, screen door facing the drive pad
+box(0.2, 8.0, 0, 0.3, -13.45, -10, M.concrete, 2);
+box(0.2, 8.0, 0.3, 0.95, -13.45, -13.33, M.siding, SIDING_SCALE);
+box(0.2, 0.32, 0.3, 0.95, -13.45, -10, M.siding, SIDING_SCALE);
+box(7.88, 8.0, 0.3, 0.95, -13.45, -11.45, M.siding, SIDING_SCALE);
+for (let x = 0.2; x <= 8.01; x += 1.3) box(x - 0.06, x + 0.06, 0.3, 2.5, -13.47, -13.33, M.trim);
+[-11.45, -12.45].forEach(z => { box(0.18, 0.32, 0.3, 2.5, z - 0.06, z + 0.06, M.trim); box(7.88, 8.02, 0.3, 2.5, z - 0.06, z + 0.06, M.trim); });
+box(0.2, 8.0, 0.95, 1.02, -13.47, -13.33, M.trim);
+const screenMat = new THREE.MeshBasicMaterial({ color: L('#26303a'), transparent: true, opacity: 0.38, depthWrite: false, side: THREE.DoubleSide });
+plane(7.8, 1.5, 4.1, 1.75, -13.39, screenMat);
+plane(3.4, 1.5, 0.26, 1.75, -11.72, screenMat, Math.PI / 2);
+plane(2.0, 1.5, 7.94, 1.75, -12.45, screenMat, Math.PI / 2);
+plane(0.9, 2.05, 7.98, 1.33, -10.75, screenMat, Math.PI / 2);                                // screen door
+box(7.96, 8.04, 0.3, 2.38, -10.3, -10.24, M.trim); box(7.96, 8.04, 0.3, 2.38, -11.26, -11.2, M.trim); box(7.96, 8.04, 2.32, 2.38, -11.26, -10.24, M.trim); box(7.96, 8.04, 1.0, 1.06, -11.26, -10.24, M.trim);
+prismX([[-10.0, 3.0], [-13.75, 2.55], [-13.75, 2.42], [-10.0, 2.87]], 0.05, 8.2, M.trim, M.roof, SIDING_SCALE, 3);
+beam(V(0.05, 2.5, -13.78), V(8.2, 2.5, -13.78), 0.05, 0.16);
+// string lights along the screens (glow with the house lights)
+M.bulb = toon({ color: L('#3a3226'), emissive: L('#ffcf86'), emissiveIntensity: 0 });
+for (let i = 0; i < 12; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), M.bulb); b.position.set(0.6 + i * 0.62, 2.3 - Math.sin((i % 3) / 2 * Math.PI) * 0.07, -13.25); scene.add(b); }
 // porch decor: mums and pumpkins
 const sph = (r, x, y, z, color, sx = 1, sy = 1) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), new THREE.MeshLambertMaterial({ color: L(color) })); m.position.set(x, y, z); m.scale.set(sx, sy, sx); return add(m); };
 sph(0.3, -2.95, FL + 0.38, 0.45, '#e5bf2b'); sph(0.3, -2.4, FL + 0.42, 0.35, '#8e2d66');
@@ -837,12 +874,15 @@ sph(0.2, -1.0, FL + 0.17, 0.45, '#e06c1d', 1, 0.82); sph(0.11, -0.72, FL + 0.09,
   const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 1), M.bush); m.position.set(x, 0.42, z); m.scale.set(1.2, 0.8, 0.9); add(m);
 });
 // garage (set back, right side)
-box(9.6, 16.4, 0, 2.75, -15, -7.4, M.siding, SIDING_SCALE);
-prismX([[-7.1, 2.72], [-11.2, 4.25], [-15.3, 2.72]], 9.3, 16.7, sidingCap, M.roof, SIDING_SCALE, 3);
-plane(4.9, 2.15, 13, 1.075, -7.36, M.garageDoor);
-box(10.45, 10.55, 0, 2.25, -7.4, -7.3, M.trim); box(15.45, 15.55, 0, 2.25, -7.4, -7.3, M.trim); box(10.45, 15.55, 2.15, 2.25, -7.4, -7.3, M.trim);
-beam(V(9.3, 2.65, -7.08), V(16.7, 2.65, -7.08), 0.05, 0.18);
-[[9.6, -7.4], [16.4, -7.4]].forEach(([x, z]) => box(x - 0.07, x + 0.07, 0, 2.75, z - 0.07, z + 0.07, M.trim));
+const GZ = -15; // garage front wall
+box(9.6, 16.4, 0, 2.75, GZ - 7, GZ, M.siding, SIDING_SCALE);
+prismX([[GZ + 0.3, 2.72], [GZ - 3.5, 4.2], [GZ - 7.3, 2.72]], 9.3, 16.7, sidingCap, M.roof, SIDING_SCALE, 3);
+plane(4.9, 2.15, 13, 1.075, GZ + 0.04, M.garageDoor);
+box(10.45, 10.55, 0, 2.25, GZ, GZ + 0.1, M.trim); box(15.45, 15.55, 0, 2.25, GZ, GZ + 0.1, M.trim); box(10.45, 15.55, 2.15, 2.25, GZ, GZ + 0.1, M.trim);
+beam(V(9.3, 2.65, GZ + 0.32), V(16.7, 2.65, GZ + 0.32), 0.05, 0.18);
+gutter(9.3, 16.7, GZ + 0.36, 2.72);
+[[9.6, GZ], [16.4, GZ]].forEach(([x, z]) => box(x - 0.07, x + 0.07, 0, 2.75, z - 0.07, z + 0.07, M.trim));
+box(9.95, 10.15, 1.75, 2.1, GZ, GZ + 0.12, M.black); box(9.99, 10.11, 1.8, 2.03, GZ + 0.05, GZ + 0.13, M.lanternGlass); // coach light
 
 // =====================================================================
 // Yard: ground, driveway, walk, street, fence, neighbors, mailbox
@@ -855,10 +895,41 @@ function flat(points, y, mat, scale) {
   const p = g.attributes.position, uv = g.attributes.uv; for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / scale, p.getZ(i) / scale);
   const m = new THREE.Mesh(g, mat); m.receiveShadow = true; scene.add(m); return m;
 }
-flat([[10.1, -7.4], [15.9, -7.4], [15.9, 22.8], [17.0, 24.3], [9.0, 24.3], [10.1, 22.8]], 0.025, M.concrete, 3);
-flat([[5.4, 1.15], [10.1, 1.15], [10.1, 2.3], [5.4, 2.3]], 0.02, M.concrete, 3); // porch-to-driveway strip along the house front (no lawn walkway)
+flat([[9.6, -15], [16.4, -15], [16.4, -9.4], [14.6, -8.2], [13.9, -7.2], [13.9, 22.8], [14.9, 24.3], [9.4, 24.3], [10.4, 22.8], [10.4, -7.6], [9.6, -8.6]], 0.025, M.concrete, 3);
+flat([[8.0, -10.1], [9.7, -10.1], [9.7, -13.9], [8.0, -13.9]], 0.022, M.concrete, 3);   // pad by the screen door
+const paverTex = canvasTex(256, 256, (g, w, h) => {
+  g.fillStyle = '#6f7275'; g.fillRect(0, 0, w, h);
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) { const v = 150 + Math.random() * 30; g.fillStyle = `rgb(${v - 8},${v},${v + 6})`; g.fillRect(c * 64 + 3, r * 64 + 3, 58, 58); }
+}, [1, 1]);
+flat([[5.4, 1.5], [10.4, 1.5], [10.4, 2.4], [5.4, 2.4]], 0.02, patch(toon({ map: paverTex }), { white: WHITE.drive, key: 'paver' }), 0.9); // paver walk, driveway to the porch side
+flat([[5.4, 0.7], [8.0, 0.7], [8.0, 1.5], [5.4, 1.5]], 0.018, M.concrete, 3);              // aggregate strip along the wall
+// trash bins by the fence at the pad
+[[16.95, '#2f4a35'], [17.75, '#4a3328']].forEach(([x, c]) => { const m = toon({ color: L(c) }); box(x - 0.34, x + 0.34, 0, 1.05, GZ + 0.25, GZ + 0.95, m); box(x - 0.38, x + 0.38, 1.05, 1.12, GZ + 0.2, GZ + 1.0, m); });
+// the family SUV on the pad, nose to the garage: a generic blue-gray compact crossover (no badges or plate text)
+(function suv(cx, cz) {
+  const paint = toon({ color: L('#4c5960') }), glass = toon({ color: L('#1a222b') }), dark = toon({ color: L('#2a2d31') }), tire = toon({ color: L('#16181a') });
+  const front = cz - 2.27, rear = cz + 2.27;
+  box(cx - 0.92, cx + 0.92, 0.32, 0.98, front + 0.12, rear - 0.06, paint);                    // body
+  box(cx - 0.9, cx + 0.9, 0.36, 0.86, front, front + 0.2, paint);                            // nose
+  prismX([[rear - 0.1, 0.98], [rear - 0.42, 1.6], [front + 1.9, 1.64], [front + 1.2, 0.98]], cx - 0.8, cx + 0.8, glass, glass, SIDING_SCALE, 3); // glasshouse
+  box(cx - 0.82, cx + 0.82, 1.6, 1.68, front + 1.85, rear - 0.45, paint);                    // roof
+  [rear - 0.32, cz + 0.05, front + 1.5].forEach(z => box(cx - 0.81, cx + 0.81, 0.98, 1.62, z - 0.06, z + 0.06, paint)); // pillars
+  [-0.6, 0.6].forEach(o => box(cx + o - 0.03, cx + o + 0.03, 1.68, 1.74, front + 2.0, rear - 0.6, dark)); // roof rails
+  box(cx - 0.92, cx + 0.92, 0.3, 0.52, rear - 0.12, rear + 0.04, dark);                      // rear bumper
+  box(cx - 0.92, cx + 0.92, 0.3, 0.48, front - 0.04, front + 0.14, dark);                    // front bumper
+  const tail = toon({ color: L('#7a1418'), emissive: L('#c0262c'), emissiveIntensity: 0.25 });
+  [-1, 1].forEach(sx => {
+    box(cx + sx * 0.88 - 0.2, cx + sx * 0.88 + 0.2, 0.8, 0.9, rear - 0.05, rear + 0.02, tail);
+    box(cx + sx * 0.7 - 0.18, cx + sx * 0.7 + 0.18, 0.72, 0.82, front - 0.02, front + 0.04, toon({ color: L('#dfe4e8') })); // headlights
+    box(cx + sx * 0.98 - 0.06, cx + sx * 0.98 + 0.06, 1.0, 1.12, front + 1.2, front + 1.4, paint);                       // mirrors
+    [front + 0.85, rear - 0.9].forEach(z => {
+      const w = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.24, 18), tire); w.rotation.z = Math.PI / 2; w.position.set(cx + sx * 0.84, 0.36, z); add(w);
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.25, 12), toon({ color: L('#9aa1a7') })); hub.rotation.z = Math.PI / 2; hub.position.set(cx + sx * 0.85, 0.36, z); add(hub, false);
+    });
+  });
+})(12.9, -11.9);
 flat([[-200, 24.3], [200, 24.3], [200, 33], [-200, 33]], 0.015, M.asphalt, 6);
-box(-200, 9.0, 0, 0.12, 24.1, 24.45, M.concrete, 3); box(17.0, 200, 0, 0.12, 24.1, 24.45, M.concrete, 3);
+box(-200, 9.4, 0, 0.12, 24.1, 24.45, M.concrete, 3); box(14.9, 200, 0, 0.12, 24.1, 24.45, M.concrete, 3);
 // 6 ft wood privacy fence enclosing the back yard (continues from the run beside the garage in the photo)
 const FENCE_H = 1.85, railMat = new THREE.MeshStandardMaterial({ color: L('#7d6448'), roughness: 0.95 });
 function fenceRun(x0, z0, x1, z1, gateAt = null) {
@@ -873,14 +944,13 @@ function fenceRun(x0, z0, x1, z1, gateAt = null) {
   const n = Math.max(1, Math.round(len / 2.4));
   for (let i = 0; i <= n; i++) { const s = a0 + len * i / n; alongX ? box(s - 0.045, s + 0.045, 0, FENCE_H + 0.06, c - 0.09, c + 0.0, railMat) : box(c - 0.09, c + 0.0, 0, FENCE_H + 0.06, s - 0.045, s + 0.045, railMat); }
 }
-fenceRun(16.45, -7.25, 20.5, -7.25);          // beside the garage, as in the photo
-fenceRun(20.5, -7.25, 20.5, -30);             // right side
+fenceRun(16.45, GZ - 0.05, 20.5, GZ - 0.05, 19.3); // beside the garage front, with gate (photo)
+fenceRun(20.5, GZ - 0.05, 20.5, -30);         // right side
 fenceRun(-16.5, -30, 20.5, -30);              // back line
 fenceRun(-16.5, -6.2, -16.5, -30);            // left side
 fenceRun(-16.5, -6.2, -10.05, -6.2, -13);     // left return to the house, with gate
-fenceRun(8.05, -8.6, 9.55, -8.6);             // short run between house and garage
-// back patio
-flat([[-2.5, -10.05], [4.5, -10.05], [4.5, -13.6], [-2.5, -13.6]], 0.03, M.concrete, 3);
+fenceRun(8.05, -14.0, 9.55, -14.0);           // porch corner to garage: closes the back yard off the drive
+fenceRun(9.55, GZ - 7.05, 9.55, -30);         // behind the garage, down to the back line
 // mailbox
 box(8.6, 8.68, 0, 1.05, 23.4, 23.48, M.trim); box(8.45, 8.85, 1.05, 1.32, 23.2, 23.7, M.black);
 // street lights (dusk-to-dawn photocell, like the real ones)
@@ -948,7 +1018,7 @@ tree({ x: -3.6, z: 7.2, trunk: 5.2, r: 0.42, forks: 2, angle0: 22, len: 5.2, dep
 // round tree by the porch (kept green: looks evergreen in the photo)
 tree({ x: 5.7, z: 3.3, trunk: 1.9, r: 0.16, forks: 3, angle0: 40, len: 1.3, depth: 1, branch: 3, angle: 45, lift: 0.2, lenF: 0.8, per: 44, clump: 1.35, card: 1.0, ever: true, tone: 1 });
 // back-yard shade trees (inside the fence)
-[[-11, -21, 1.1], [5.5, -24.5, 1.15], [16, -20, 0.9], [-4, -27, 0.8]].forEach(([x, z, s]) =>
+[[3.5, -23.5, 1.45], [-10.5, -22, 1.05], [-3, -28, 0.8], [13.2, -27.5, 1.3], [18.6, -25.5, 1.15]].forEach(([x, z, s]) =>
   tree({ x, z, trunk: 4.6 * s, r: 0.34 * s, forks: 2, angle0: 24, len: 4.2 * s, depth: 2, branch: 2, angle: 32, lift: 0.28, lenF: 0.78, per: LOW ? 30 : 40, clump: 2.6 * s, card: 2.0 * s }));
 // tree lines: behind the back fence, across the road, and beside the neighbors.
 // They sit in the haze band, so they fade with distance.
@@ -1027,11 +1097,12 @@ const grass = (() => {
   const g = tuftGeometry();
   const im = new THREE.InstancedMesh(g, grassMat, GRASS_N);
   const excluded = (x, z) =>
-    (x > 9.7 && x < 16.3 && z > -7.6 && z < 24.6) ||                       // driveway
+    (x > 10.2 && x < 14.1 && z > -9.6 && z < 24.6) || (x > 9.4 && x < 16.6 && z > -15.2 && z < -8.0) || // driveway + pad
     (x > -10.6 && x < 5.2 && z > -10.5 && z < 3.0) || (x > 5.0 && x < 8.4 && z > -10.5 && z < 0.7) || // house + porch
-    (x > 9.3 && x < 16.7 && z > -15.4 && z < -7.0) ||                       // garage
-    (x > -2.6 && x < 4.6 && z > -13.7 && z < -10.0) ||                      // patio
-    (x > 4.9 && x < 10.2 && z > 1.05 && z < 2.4) ||                         // porch-to-driveway strip
+    (x > 9.2 && x < 16.8 && z > -22.4 && z < -14.6) ||                      // garage
+    (x > 0.0 && x < 9.8 && z > -14.1 && z < -9.9) ||                        // screened porch + side pad
+    (x > 5.2 && x < 10.5 && z > 0.6 && z < 2.5) ||                          // pavers + strip
+    (x > 16.5 && x < 18.3 && z > -15.0 && z < -13.9) ||                     // trash bins
     z > 24.0 || (Math.hypot(x + 3.6, z - 7.2) < 0.55) || (Math.hypot(x - 5.7, z - 3.3) < 0.25) ||
     (z < -6.0 && (x < -16.4 || x > 20.4)) || z < -29.9;                      // outside the back fence
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pos = new THREE.Vector3(), c = new THREE.Color();
@@ -1740,7 +1811,7 @@ function frame() {
   houseLightLevel = lerp(houseLightLevel, lightsTarget, Math.min(1, dt * 6));
   const hl = houseLightLevel;
   M_WIN.emissiveIntensity = hl * 0.9; M_ARCH.emissiveIntensity = hl * 0.9;
-  M.lanternGlass.emissiveIntensity = hl * 1.6; porchLight.intensity = hl * 1.5; windowSpill.intensity = hl * 0.7 * (0.3 + 0.7 * (1 - Lday));
+  M.lanternGlass.emissiveIntensity = hl * 1.6; M.bulb.emissiveIntensity = hl * 1.8; porchLight.intensity = hl * 1.5; windowSpill.intensity = hl * 0.7 * (0.3 + 0.7 * (1 - Lday));
 
   // ---- environment reflection refresh
   envTimer -= dt;
