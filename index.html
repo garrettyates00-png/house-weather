@@ -38,6 +38,7 @@ body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 button, .card { touch-action: manipulation; }
 .btn svg { width: 16px; height: 16px; flex: none; }
 .btn { display: inline-flex; align-items: center; gap: 6px; }
+#btnTour .tour-stop { display: none; } #btnTour[aria-pressed="true"] .tour-stop { display: inline; } #btnTour[aria-pressed="true"] .tour-play { display: none; } #btnTour[aria-pressed="true"] { border-color: var(--butter); color: var(--butter); }
 #btnSound .snd-on { display: none; } #btnSound[aria-pressed="true"] .snd-on { display: inline; } #btnSound[aria-pressed="true"] .snd-off { display: none; }
 #btnSound[aria-pressed="true"] { border-color: var(--butter); color: var(--butter); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -207,7 +208,7 @@ body.radar-on .card, body.radar-on .bar { opacity: 0; pointer-events: none; tran
   <button type="button" class="btn" id="btnLights" aria-label="House lights: Auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg><span id="lightsLbl">Auto</span></button>
   <button type="button" class="btn" id="btnSound" aria-pressed="false" aria-label="Sound off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="snd-on" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/><path class="snd-off" d="M17 9l5 6M22 9l-5 6"/></svg><span class="lbl-long">Sound</span></button>
   <button type="button" class="btn" id="btnRadar" aria-label="Radar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12l6.4-6.4"/></svg><span class="lbl-long">Radar</span></button>
-  <button type="button" class="btn" id="btnHome" aria-label="Recenter view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg><span class="lbl-long">Recenter</span></button>
+  <button type="button" class="btn" id="btnTour" aria-pressed="false" aria-label="Start auto tour"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 13.5A9 4.5 0 0 0 20.5 13.5"/><path d="M17.5 16.6l3-3.1-4.2-.9"/><path class="tour-play" d="M10 6.5v6l5-3z" fill="currentColor"/><path class="tour-stop" d="M9.5 6.5h5v5h-5z" fill="currentColor"/></svg><span class="lbl-long">Tour</span></button>
 </nav>
 
 <aside class="panel" id="panel" hidden aria-label="Studio weather controls">
@@ -351,7 +352,7 @@ const fmtHour = h => { const hh = Math.floor(h) % 24, mm = Math.round((h % 1) * 
 // fence fades into the horizon color, on top of the weather fog.
 // Rectangle = the lot plus the street; fade over FADE meters outside it.
 // ---------------------------------------------------------------------
-const LOT = { x0: -44, x1: 46, z0: -31, z1: 34, fade: 34 };
+const LOT = { x0: -19, x1: 23, z0: -31, z1: 34, fade: 14 };
 THREE.ShaderChunk.fog_pars_vertex = '#ifdef USE_FOG\n varying float fogDepth;\n varying vec3 vFogWorld;\n#endif';
 THREE.ShaderChunk.fog_vertex = '#ifdef USE_FOG\n fogDepth = - mvPosition.z;\n vec3 fogRel = mvPosition.xyz - viewMatrix[3].xyz;\n vFogWorld = vec3(dot(viewMatrix[0].xyz, fogRel), dot(viewMatrix[1].xyz, fogRel), dot(viewMatrix[2].xyz, fogRel));\n#endif'; // world = transpose(R) * (view - t)
 THREE.ShaderChunk.fog_pars_fragment = `#ifdef USE_FOG
@@ -582,7 +583,7 @@ function windowTexes(cols, rows) {
   const draw = glow => (g, w, h) => {
     g.fillStyle = '#f4f4ef'; g.fillRect(0, 0, w, h);
     const f = 14;
-    if (glow) { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#ffd28f'); gr.addColorStop(1, '#f3a85a'); g.fillStyle = gr; }
+    if (glow) { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#ffe08e'); gr.addColorStop(1, '#ffb347'); g.fillStyle = gr; }
     else { const gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#5b6c7a'); gr.addColorStop(.45, '#24303a'); gr.addColorStop(1, '#1a232b'); g.fillStyle = gr; }
     g.fillRect(f, f, w - 2 * f, h - 2 * f);
     if (!glow) { g.fillStyle = 'rgba(255,255,255,.08)'; g.beginPath(); g.moveTo(f, f); g.lineTo(w * .55, f); g.lineTo(f, h * .55); g.fill(); }
@@ -773,23 +774,27 @@ box(-10, -3.5, FL, WT, -10, 1.5, M.siding, SIDING_SCALE);
 // main side-gable roof (pitch ~5/12)
 prismX([[0.55, 2.98], [-5, 5.36], [-10.55, 2.98]], -6, 8.45, sidingCap, M.roof, SIDING_SCALE, 3);
 // left wing front-gable roof
-prismZ([[-10.45, 2.98], [-6.75, 5.2], [-3.05, 2.98]], -10, 1.95, sidingCap, M.roof, 3);
+prismZ([[-10.35, 2.98], [-6.75, 5.2], [-3.15, 2.98]], -10, 1.6, sidingCap, M.roof, 3); // gable face flush with the wing wall (no front overhang)
 // gable rake + fascia trim
 function beam(a, b, t, h, mat = M.trim) {
   const len = a.distanceTo(b), g = new THREE.BoxGeometry(t, h, len);
   const m = new THREE.Mesh(g, mat); m.position.copy(a).add(b).multiplyScalar(0.5); m.lookAt(b); return add(m);
 }
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
-beam(V(-10.45, 2.96, 1.97), V(-6.75, 5.18, 1.97), 0.05, 0.18);
-beam(V(-6.75, 5.18, 1.97), V(-3.05, 2.96, 1.97), 0.05, 0.18);
+beam(V(-10.35, 2.96, 1.63), V(-6.75, 5.18, 1.63), 0.05, 0.16);
+beam(V(-6.75, 5.18, 1.63), V(-3.15, 2.96, 1.63), 0.05, 0.16);
 beam(V(-3.05, 2.9, 0.6), V(8.45, 2.9, 0.6), 0.05, 0.18);
 beam(V(8.47, 2.96, 0.55), V(8.47, 5.34, -5), 0.05, 0.18);
 beam(V(8.47, 5.34, -5), V(8.47, 2.96, -10.55), 0.05, 0.18);
 // gable vent on the wing
-plane(1.3, 0.65, -6.75, 4.25, 1.97, M.vent);
+plane(1.3, 0.65, -6.75, 4.25, 1.62, M.vent);
 // porch: slab, shed roof, posts, rails, balusters, steps
 box(-3.4, 4.95, 0, FL, 0, 2.45, M.concrete, 2);
 prismX([[0.4, 3.02], [2.7, 2.66], [2.7, 2.52], [0.4, 2.88]], -3.5, 5.05, M.trim, M.roof, 3, 3);
+// white soffits / porch ceilings, so no shingles show from underneath
+box(-10.35, -3.15, 2.92, 2.965, -10, 1.6, M.trim);
+box(-6, 8.45, 2.92, 2.965, -10.55, 0.55, M.trim);
+beam(V(0.775, 2.865, 0.42), V(0.775, 2.505, 2.68), 8.5, 0.02);
 beam(V(-3.5, 2.56, 2.72), V(5.05, 2.56, 2.72), 0.05, 0.2);
 const POSTS = [-3.25, -0.45, 2.2, 4.8];
 POSTS.forEach(x => { box(x - 0.08, x + 0.08, FL, 2.56, 2.22, 2.38, M.trim); box(x - 0.11, x + 0.11, FL, FL + 0.3, 2.19, 2.41, M.trim); });
@@ -813,9 +818,9 @@ box(-2.33, -1.17, FL, 2.53, 0.0, 0.05, M.trim);
 plane(0.95, 2.05, -1.75, FL + 1.025, 0.06, M.door);
 box(-1.02, -0.88, 1.85, 2.15, 0.02, 0.16, M.black);
 box(-1.0, -0.9, 1.88, 2.1, 0.04, 0.14, M.lanternGlass);
-const porchLight = new THREE.PointLight(0xffb35c, 0, 10, 2); porchLight.position.set(-0.95, 2.0, 0.6); scene.add(porchLight);
+const porchLight = new THREE.PointLight(0xffc062, 0, 13, 2); porchLight.position.set(-0.95, 2.0, 0.6); scene.add(porchLight);
 // warm spill from the lit arched windows onto the front beds
-const windowSpill = new THREE.PointLight(0xffc27a, 0, 9, 2); windowSpill.position.set(-6.7, 1.9, 3.0); scene.add(windowSpill);
+const windowSpill = new THREE.PointLight(0xffc062, 0, 11, 2); windowSpill.position.set(-6.7, 1.9, 3.0); scene.add(windowSpill);
 function windowAt(x, z, w, h, sill, shutters = true) {
   plane(w, h, x, sill + h / 2, z + 0.03, M_WIN);
   box(x - w / 2 - 0.05, x + w / 2 + 0.05, sill - 0.06, sill, z, z + 0.09, M.trim);
@@ -863,10 +868,12 @@ plane(2.0, 1.5, 7.94, 1.75, -12.45, screenMat, Math.PI / 2);
 plane(0.9, 2.05, 7.98, 1.33, -10.75, screenMat, Math.PI / 2);                                // screen door
 box(7.96, 8.04, 0.3, 2.38, -10.3, -10.24, M.trim); box(7.96, 8.04, 0.3, 2.38, -11.26, -11.2, M.trim); box(7.96, 8.04, 2.32, 2.38, -11.26, -10.24, M.trim); box(7.96, 8.04, 1.0, 1.06, -11.26, -10.24, M.trim);
 prismX([[-10.0, 3.0], [-13.75, 2.55], [-13.75, 2.42], [-10.0, 2.87]], 0.05, 8.2, M.trim, M.roof, SIDING_SCALE, 3);
+beam(V(4.125, 2.855, -10.02), V(4.125, 2.405, -13.73), 8.1, 0.02); // screened porch ceiling
 beam(V(0.05, 2.5, -13.78), V(8.2, 2.5, -13.78), 0.05, 0.16);
 // string lights along the screens (glow with the house lights)
 M.bulb = toon({ color: L('#3a3226'), emissive: L('#ffcf86'), emissiveIntensity: 0 });
-for (let i = 0; i < 12; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), M.bulb); b.position.set(0.6 + i * 0.62, 2.3 - Math.sin((i % 3) / 2 * Math.PI) * 0.07, -13.25); scene.add(b); }
+const bulbHalos = [];
+for (let i = 0; i < 12; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), M.bulb); b.position.set(0.6 + i * 0.62, 2.3 - Math.sin((i % 3) / 2 * Math.PI) * 0.07, -13.25); scene.add(b); bulbHalos.push(glowHalo(b.position.x, b.position.y, b.position.z + 0.05, 0.42, 0xffcf86)); }
 // porch decor: mums and pumpkins
 const sph = (r, x, y, z, color, sx = 1, sy = 1) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), new THREE.MeshLambertMaterial({ color: L(color) })); m.position.set(x, y, z); m.scale.set(sx, sy, sx); return add(m); };
 sph(0.3, -2.95, FL + 0.38, 0.45, '#e5bf2b'); sph(0.3, -2.4, FL + 0.42, 0.35, '#8e2d66');
@@ -874,19 +881,30 @@ box(-3.12, -2.78, FL, FL + 0.22, 0.28, 0.62, new THREE.MeshLambertMaterial({ col
 box(-2.57, -2.23, FL, FL + 0.22, 0.18, 0.52, new THREE.MeshLambertMaterial({ color: L('#a2492a') }));
 sph(0.2, -1.0, FL + 0.17, 0.45, '#e06c1d', 1, 0.82); sph(0.11, -0.72, FL + 0.09, 0.6, '#efe7d0', 1, 0.7); sph(0.1, -0.55, FL + 0.08, 0.4, '#d9a033', 1, 0.75);
 // shrubs along the foundation
-[[-9.2, 2.0], [-7.4, 2.05], [-6.0, 2.0], [-4.3, 2.0], [5.4, 0.6], [7.2, 0.6]].forEach(([x, z]) => {
-  const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 1), M.bush); m.position.set(x, 0.42, z); m.scale.set(1.2, 0.8, 0.9); add(m);
+const mulchTex = canvasTex(256, 256, (g, w, h) => {
+  g.fillStyle = '#4b2d1d'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 2600; i++) { const v = Math.random(); g.fillStyle = v < .4 ? 'rgba(30,16,10,.6)' : v < .8 ? 'rgba(120,70,40,.45)' : 'rgba(160,100,60,.35)';
+    g.save(); g.translate(Math.random() * w, Math.random() * h); g.rotate(Math.random() * 3); g.fillRect(-rnd(2, 6), -1, rnd(4, 12), rnd(1.5, 3)); g.restore(); }
+}, [1, 1]);
+const M_MULCH = patch(toon({ map: mulchTex }), { white: WHITE.bush, key: 'mulch' });
+// beds: wing front, porch front (curved outer edge)
+flat([[-10.35, 1.5], [-3.4, 1.5], [-3.4, 2.45], [-3.5, 2.75], [-5, 3.0], [-7, 3.1], [-9, 3.0], [-10.35, 2.8]], 0.035, M_MULCH, 1.4);
+flat([[-3.4, 2.45], [4.95, 2.45], [4.95, 3.1], [3, 3.35], [0, 3.45], [-2, 3.4], [-3.4, 3.2]], 0.035, M_MULCH, 1.4);
+[[-9.2, 2.0], [-7.4, 2.05], [-6.0, 2.0], [-4.3, 2.0], [-2.4, 2.95, 0.7], [-0.4, 3.0, 0.65], [1.8, 2.95, 0.7], [3.8, 2.85, 0.6]].forEach(([x, z, k = 1]) => {
+  const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 1), M.bush); m.position.set(x, 0.42 * k, z); m.scale.set(1.2 * k, 0.8 * k, 0.9 * k); add(m);
 });
 // garage (set back, right side)
 const GZ = -15; // garage front wall
 box(9.6, 16.4, 0, 2.75, GZ - 7, GZ, M.siding, SIDING_SCALE);
 prismX([[GZ + 0.3, 2.72], [GZ - 3.5, 4.2], [GZ - 7.3, 2.72]], 9.3, 16.7, sidingCap, M.roof, SIDING_SCALE, 3);
+box(9.3, 16.7, 2.66, 2.705, GZ - 7.3, GZ + 0.3, M.trim); // garage soffit
 plane(4.9, 2.15, 13, 1.075, GZ + 0.04, M.garageDoor);
 box(10.45, 10.55, 0, 2.25, GZ, GZ + 0.1, M.trim); box(15.45, 15.55, 0, 2.25, GZ, GZ + 0.1, M.trim); box(10.45, 15.55, 2.15, 2.25, GZ, GZ + 0.1, M.trim);
 beam(V(9.3, 2.65, GZ + 0.32), V(16.7, 2.65, GZ + 0.32), 0.05, 0.18);
 gutter(9.3, 16.7, GZ + 0.36, 2.72);
 [[9.6, GZ], [16.4, GZ]].forEach(([x, z]) => box(x - 0.07, x + 0.07, 0, 2.75, z - 0.07, z + 0.07, M.trim));
 box(9.95, 10.15, 1.75, 2.1, GZ, GZ + 0.12, M.black); box(9.99, 10.11, 1.8, 2.03, GZ + 0.05, GZ + 0.13, M.lanternGlass); // coach light
+const coachHalo = glowHalo(10.05, 1.92, GZ + 0.35, 1.1, 0xffc062);
 
 // =====================================================================
 // Yard: ground, driveway, walk, street, fence, neighbors, mailbox
@@ -957,24 +975,40 @@ fenceRun(8.05, -14.0, 9.55, -14.0);           // porch corner to garage: closes 
 fenceRun(9.55, GZ - 7.05, 9.55, -30);         // behind the garage, down to the back line
 // mailbox
 box(8.6, 8.68, 0, 1.05, 23.4, 23.48, M.trim); box(8.45, 8.85, 1.05, 1.32, 23.2, 23.7, M.black);
+// warm light, painted in: additive pools on the ground and halos around fixtures (cheap on phones, no extra lights)
+const glowMat = (color) => new THREE.MeshBasicMaterial({ map: dotTex, color, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
+function glowPool(x, z, w, d, color, y = 0.05) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), glowMat(color)); m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); m.renderOrder = 3; scene.add(m); return m;
+}
+function glowHalo(x, y, z, size, color) {
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+  sp.position.set(x, y, z); sp.scale.set(size, size, 1); scene.add(sp); return sp;
+}
+const houseGlows = [
+  // pools under each lit window, on the porch floor, along the screened porch, and on the pad by the coach light
+  glowPool(0.9, 1.3, 2.6, 2.0, 0xffbf5e, FL + 0.02), glowPool(-1.1, 1.4, 3.2, 2.4, 0xffbf5e, FL + 0.02),
+  glowPool(6.3, 1.8, 3.0, 2.8, 0xffbf5e), glowPool(-8.2, 3.0, 2.6, 3.2, 0xffbf5e), glowPool(-5.3, 3.0, 2.6, 3.2, 0xffbf5e),
+  glowPool(9.3, -6.6, 2.8, 2.8, 0xffbf5e), glowPool(4.1, -11.8, 7.6, 3.2, 0xffc874, 0.32), glowPool(10.1, GZ + 1.6, 3.4, 3.4, 0xffc874, 0.04),
+];
+const houseHalos = [glowHalo(-0.95, 2.0, 0.2, 0.9, 0xffc062)];
+// soft warm bloom around each lit window
+const windowHalos = [[0.9, 1.85, 0.3], [6.3, 1.85, 0.3], [-8.2, 2.1, 1.85], [-5.3, 2.1, 1.85], [8.3, 1.8, -6.6]].map(([x, y, z]) => glowHalo(x, y, z, 2.6, 0xffb94f));
 // street lights (dusk-to-dawn photocell, like the real ones)
 const lampHeadMat = new THREE.MeshStandardMaterial({ color: L('#2a2c2e'), emissive: L('#ffd9a8'), emissiveIntensity: 0, roughness: 0.4 });
 const poleMat = new THREE.MeshStandardMaterial({ color: L('#3a3d40'), roughness: 0.6, metalness: 0.5 });
-const streetLamps = [[-15, 25.3, 1], [21, 25.3, -1], [-34, 33.6, 1]].map(([x, z, s]) => {
+const streetLamps = [[-15, 25.3, 1], [21, 25.3, -1], [-12, 33.6, 1]].map(([x, z, s]) => {
   const zf = z < 30 ? 1 : -1; // arm reaches toward the street
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, 6.2, 10), poleMat); pole.position.set(x, 3.1, z); add(pole);
   const arm = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 1.6), poleMat); arm.position.set(x, 6.1, z + zf * 0.75); add(arm);
   const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.14, 0.7), lampHeadMat); head.position.set(x, 6.02, z + zf * 1.5); add(head, true, false);
-  const light = new THREE.PointLight(0xffd9a8, 0, 30, 1.6); light.position.set(x, 5.8, z + zf * 1.5); scene.add(light);
-  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color: 0xffd9a8, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
-  halo.position.copy(light.position); halo.scale.set(2.6, 2.6, 1); scene.add(halo);
-  return { light, halo };
+  const light = new THREE.PointLight(0xffc56e, 0, 30, 1.6); light.position.set(x, 5.8, z + zf * 1.5); scene.add(light);
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color: 0xffc56e, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+  halo.position.copy(light.position); halo.scale.set(3.2, 3.2, 1); scene.add(halo);
+  const pool = glowPool(x, z + zf * 1.8, 11, 11, 0xffc56e, 0.03);
+  return { light, halo, pool };
 });
 // neighbors (simple massing, kept quiet)
-box(-40, -24, 0, 2.8, -15, -3, M.brick, 2.5);
-prismX([[-2.6, 2.75], [-9, 5.2], [-15.4, 2.75]], -40.5, -23.5, M.brick, M.roof, 2.5, 3);
-box(28, 44, 0, 2.8, -22, -10, M.siding, SIDING_SCALE);
-prismX([[-9.6, 2.75], [-16, 5.0], [-22.4, 2.75]], 27.5, 44.5, M.siding, M.roof, SIDING_SCALE, 3);
+
 
 // =====================================================================
 // Trees (procedural branches + leaf cards; all sway with the wind shader)
@@ -1102,7 +1136,7 @@ const grass = (() => {
   const im = new THREE.InstancedMesh(g, grassMat, GRASS_N);
   const excluded = (x, z) =>
     (x > 10.2 && x < 14.1 && z > -9.6 && z < 24.6) || (x > 9.4 && x < 16.6 && z > -15.2 && z < -8.0) || // driveway + pad
-    (x > -10.6 && x < 5.2 && z > -10.5 && z < 3.0) || (x > 5.0 && x < 8.4 && z > -10.5 && z < 0.7) || // house + porch
+    (x > -10.6 && x < 5.2 && z > -10.5 && z < 3.2) || (x > -3.6 && x < 5.1 && z > 3.0 && z < 3.55) || (x > 5.0 && x < 8.4 && z > -10.5 && z < 0.7) || // house, porch, beds
     (x > 9.2 && x < 16.8 && z > -22.4 && z < -14.6) ||                      // garage
     (x > 0.0 && x < 9.8 && z > -14.1 && z < -9.9) ||                        // screened porch + side pad
     (x > 5.2 && x < 10.5 && z > 0.6 && z < 2.5) ||                          // pavers + strip
@@ -1395,7 +1429,7 @@ let fly = null;
 function flyTo(pos, tgt, dur = 1.2) { fly = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos.clone(), t1: tgt.clone(), e: 0, dur }; }
 function recenter() { const h = homeForViewport(); flyTo(h.pos, h.tgt); }
 controls.addEventListener('start', () => { fly = null; });
-document.getElementById('btnHome').addEventListener('click', recenter);
+
 renderer.domElement.addEventListener('dblclick', recenter);
 let lastTap = 0, tapX = 0, tapY = 0;
 renderer.domElement.addEventListener('pointerup', e => {
@@ -1558,6 +1592,7 @@ function setPlaying(p) {
 }
 async function openRadar() {
   if (radarState !== 'closed') return;
+  if (tour.on) setTour(false);
   if (!Lf) { byId('srcText').textContent = 'The radar map could not load. Check your connection and try again.'; return; }
   radarState = 'opening';
   if (!byId('panel').hidden) togglePanel();
@@ -1737,6 +1772,33 @@ function createSound() {
   const rainHiss = loopNoise('highpass', 900, 0.5);
   const rainRoar = loopNoise('lowpass', 700, 0.5);
   const birdBus = ctx.createGain(); birdBus.gain.value = 0.55; birdBus.connect(master);
+  // quiet ambient music: soft pads + sparse plucks through a gentle echo
+  const musicBus = ctx.createGain(); musicBus.gain.value = 0; musicBus.connect(master);
+  const musicLP = ctx.createBiquadFilter(); musicLP.type = 'lowpass'; musicLP.frequency.value = 1800; musicLP.connect(musicBus);
+  const echo = ctx.createDelay(1.5); echo.delayTime.value = 0.46; const echoFb = ctx.createGain(); echoFb.gain.value = 0.32;
+  echo.connect(echoFb); echoFb.connect(echo); echo.connect(musicLP);
+  const hz = n => 440 * Math.pow(2, (n - 69) / 12);
+  const DAY = [[48, 55, 64, 71], [45, 52, 60, 67], [41, 48, 57, 64], [43, 50, 59, 64]];  // Cmaj7  Am7  Fmaj7  G6
+  const MOOD = [[45, 52, 60, 67], [41, 48, 57, 64], [38, 45, 53, 60], [40, 47, 55, 62]]; // Am7  Fmaj7  Dm7  Em7 (night, rain)
+  const SCALE = [60, 62, 64, 67, 69, 72, 74, 76];
+  let musicOn = false, nextChord = 0, chordI = 0;
+  function pad(t, n, dur) {
+    [0, 6].forEach(det => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = det ? 'triangle' : 'sine'; o.frequency.value = hz(n); o.detune.value = det;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.05, t + 1.8); g.gain.setValueAtTime(0.05, t + dur - 2); g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 1.5);
+      o.connect(g); g.connect(musicLP); o.start(t); o.stop(t + dur + 1.6); });
+  }
+  function pluck(t, n) {
+    const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.value = hz(n);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.07, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+    o.connect(g); g.connect(musicLP); g.connect(echo); o.start(t); o.stop(t + 1.7);
+  }
+  function musicTick() {
+    if (!musicOn || ctx.currentTime < nextChord - 0.5) return;
+    const t = Math.max(ctx.currentTime + 0.05, nextChord), set = (st.rain > 0.1 || st.sunAlt < -4) ? MOOD : DAY, ch = set[chordI++ % set.length], len = 7.5;
+    ch.forEach(n => pad(t, n, len));
+    const k = 2 + (Math.random() * 3 | 0); for (let i = 0; i < k; i++) pluck(t + 0.8 + i * rnd(1.2, 1.9), SCALE[(Math.random() * SCALE.length) | 0] + (Math.random() < 0.3 ? 12 : 0));
+    nextChord = t + len;
+  }
   const bugBus = ctx.createGain(); bugBus.gain.value = 0.35; bugBus.connect(master);
   const set = (param, v, tc = 0.6) => param.setTargetAtTime(v, ctx.currentTime, tc);
   const panned = (bus, pan) => { const p = ctx.createStereoPanner ? ctx.createStereoPanner() : null; if (p) { p.pan.value = pan; p.connect(bus); return p; } return bus; };
@@ -1800,6 +1862,7 @@ function createSound() {
   }
   return {
     get on() { return on; },
+    setMusic(v) { musicOn = v; if (v) nextChord = 0; set(musicBus.gain, v ? 0.5 : 0, v ? 2 : 1.2); },
     async start() { on = true; try { await ctx.resume(); } catch (e) {} set(master.gain, 0.8, 0.8); },
     stop() { on = false; set(master.gain, 0, 0.3); setTimeout(() => { if (!on) ctx.suspend(); }, 1200); },
     suspend() { ctx.suspend(); }, resume() { if (on) ctx.resume(); },
@@ -1815,7 +1878,7 @@ function createSound() {
       set(rainRoar.g.gain, Math.min(0.7, st.rain * st.rain * 0.8), 0.8);
       set(muffle.frequency, 18000 - 12000 * st.cover, 2);
       set(master.gain, st.duck ? 0.2 : 0.8, 0.5);
-      tick(dt);
+      tick(dt); musicTick();
     },
     thunder(dist) { // rumble arrives a few seconds after the flash
       if (!on) return;
@@ -1841,6 +1904,33 @@ function createSound() {
   }
   document.addEventListener('visibilitychange', () => { if (!sound) return; document.hidden ? sound.suspend() : sound.resume(); });
 })();
+
+// =====================================================================
+// Auto tour: the camera sweeps back and forth across the front of the house
+// =====================================================================
+const tour = { on: false, t: 0, blend: 0, pos: new THREE.Vector3(), tgt: new THREE.Vector3() };
+const tourBtn = document.getElementById('btnTour');
+function setTour(on) {
+  tour.on = on; tour.blend = 0; tourBtn.setAttribute('aria-pressed', String(on)); tourBtn.setAttribute('aria-label', on ? 'Stop auto tour' : 'Start auto tour');
+  if (on) {
+    fly = null; tour.t = 0;
+    if (!sound) sound = createSound();
+    if (sound) { if (!sound.on) { sound.start(); document.getElementById('btnSound').setAttribute('aria-pressed', 'true'); store.set('yh-sound', '1'); } sound.setMusic(true); }
+  } else if (sound) sound.setMusic(false);
+}
+tourBtn.addEventListener('click', () => setTour(!tour.on));
+controls.addEventListener('start', () => { if (tour.on) setTour(false); }); // any drag hands control back
+function tourStep(dt) {
+  if (!tour.on) return;
+  tour.t += dt;
+  const portrait = innerHeight > innerWidth, R = portrait ? 30 : 24;
+  const a = Math.sin(tour.t * 2 * Math.PI / 80) * 1.15;                       // about +/-66 degrees across the front, 80 s per round trip
+  tour.tgt.set(0.5 + Math.sin(tour.t * 0.05) * 1.2, 2.3, -1.2);
+  tour.pos.set(tour.tgt.x + Math.sin(a) * R, 3.2 + 1.6 * (0.5 + 0.5 * Math.sin(tour.t * 2 * Math.PI / 47)), tour.tgt.z + Math.cos(a) * R);
+  tour.blend = Math.min(1, tour.blend + dt / 3);                             // ease in from wherever the camera was
+  const k = 1 - Math.exp(-dt * (0.5 + 2.5 * tour.blend));                    // smooth follow, never a jump
+  camera.position.lerp(tour.pos, k); controls.target.lerp(tour.tgt, k);
+}
 
 // =====================================================================
 // Frame loop
@@ -1951,13 +2041,19 @@ function frame() {
   // street lights: automatic photocell
   const dusk = smooth(0.35, 0.06, Lday * (1 - 0.55 * ov));
   lampHeadMat.emissiveIntensity = dusk * 2.2;
-  streetLamps.forEach(s => { s.light.intensity = dusk * 1.5; s.halo.material.opacity = dusk * 0.55; });
+  const dark = 1 - Lday; // glows read strongest at night, faint at dusk
+  streetLamps.forEach(s => { s.light.intensity = dusk * 2.2; s.halo.material.opacity = dusk * 0.7; s.pool.material.opacity = dusk * (0.2 + 0.45 * dark); });
   // house lights: Auto follows dusk, On / Off override
   const lightsTarget = houseLights === 'on' ? 1 : houseLights === 'off' ? 0 : dusk;
   houseLightLevel = lerp(houseLightLevel, lightsTarget, Math.min(1, dt * 6));
   const hl = houseLightLevel;
-  M_WIN.emissiveIntensity = hl * 0.9; M_ARCH.emissiveIntensity = hl * 0.9;
-  M.lanternGlass.emissiveIntensity = hl * 1.6; M.bulb.emissiveIntensity = hl * 1.8; porchLight.intensity = hl * 1.5; windowSpill.intensity = hl * 0.7 * (0.3 + 0.7 * (1 - Lday));
+  M_WIN.emissiveIntensity = hl * 1.25; M_ARCH.emissiveIntensity = hl * 1.25;
+  M.lanternGlass.emissiveIntensity = hl * 1.8; M.bulb.emissiveIntensity = hl * 2.0; porchLight.intensity = hl * 2.6; windowSpill.intensity = hl * 1.4 * (0.3 + 0.7 * (1 - Lday));
+  const gl = hl * (0.15 + 0.85 * dark);
+  houseGlows.forEach(m => { m.material.opacity = gl * 0.95; });
+  windowHalos.forEach(h => { h.material.opacity = gl * 0.38; });
+  houseHalos.forEach(h => { h.material.opacity = gl * 0.9; }); coachHalo.material.opacity = gl * 0.9;
+  bulbHalos.forEach(h => { h.material.opacity = gl * 0.75; });
 
   // ---- environment reflection refresh
   envTimer -= dt;
@@ -2056,6 +2152,7 @@ function frame() {
   }
   controls.target.x = clamp(controls.target.x, -30, 30); controls.target.z = clamp(controls.target.z, -25, 30); controls.target.y = clamp(controls.target.y, 0.5, 8);
   if (camera.position.y < 0.4) camera.position.y = 0.4;
+  tourStep(dt);
   controls.update();
   if (sound) sound.update(dt, { wind: cur.wind, gustLocal: excess * gustEnvAt(controls.target.x, controls.target.z) / 0.447, rain: cur.rain, snow: cur.snow, cover: cur.cover, tempF: cur.tempF, sunAlt, morning: sp.az < 0, thunder: cur.thunder, duck: radarState === 'open' });
   if (radarState !== 'open' || fly) renderer.render(scene, camera); // the map covers the screen; save the battery
