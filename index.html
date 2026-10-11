@@ -38,6 +38,8 @@ body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 button, .card { touch-action: manipulation; }
 .btn svg { width: 16px; height: 16px; flex: none; }
 .btn { display: inline-flex; align-items: center; gap: 6px; }
+#btnSound .snd-on { display: none; } #btnSound[aria-pressed="true"] .snd-on { display: inline; } #btnSound[aria-pressed="true"] .snd-off { display: none; }
+#btnSound[aria-pressed="true"] { border-color: var(--butter); color: var(--butter); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 .card {
@@ -130,6 +132,7 @@ select { font: 13px var(--body); background: rgba(0,0,0,.35); color: var(--text)
   .btn { padding: 0 12px; min-height: 40px; font-size: 12.5px; }
   .seg button { padding: 0 11px; min-height: 34px; font-size: 12.5px; }
   .btn .lbl-long { display: none; }
+  .bar { gap: 5px; }
   .panel { top: auto; left: 8px; right: 8px; width: auto; max-height: 55vh; max-height: 55dvh; bottom: calc(env(safe-area-inset-bottom, 0px) + 60px); padding: 12px 14px 14px; gap: 10px; }
   .panel p.hint { font-size: 11.5px; }
   input[type=range] { height: 30px; }
@@ -200,8 +203,9 @@ body.radar-on .card, body.radar-on .bar { opacity: 0; pointer-events: none; tran
     <button type="button" id="mLive" aria-pressed="true">Live</button>
     <button type="button" id="mStudio" aria-pressed="false">Studio</button>
   </div>
-  <button type="button" class="btn" id="btnPanel" aria-expanded="false" aria-controls="panel">Adjust</button>
+  <button type="button" class="btn" id="btnPanel" aria-expanded="false" aria-controls="panel" aria-label="Adjust weather"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span class="lbl-long">Adjust</span></button>
   <button type="button" class="btn" id="btnLights" aria-label="House lights: Auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg><span id="lightsLbl">Auto</span></button>
+  <button type="button" class="btn" id="btnSound" aria-pressed="false" aria-label="Sound off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="snd-on" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/><path class="snd-off" d="M17 9l5 6M22 9l-5 6"/></svg><span class="lbl-long">Sound</span></button>
   <button type="button" class="btn" id="btnRadar" aria-label="Radar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12l6.4-6.4"/></svg><span class="lbl-long">Radar</span></button>
   <button type="button" class="btn" id="btnHome" aria-label="Recenter view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg><span class="lbl-long">Recenter</span></button>
 </nav>
@@ -1264,6 +1268,7 @@ function strike() {
   let px = x, py = 170;
   for (let i = 0; i < 40; i++) { p.setXYZ(i, px, py, z); px += rnd(-9, 9); py -= 170 / 39; }
   p.needsUpdate = true; lightning.t = 0; flashLight.position.set(x, 150, z);
+  if (sound) sound.thunder(d);
 }
 
 // =====================================================================
@@ -1697,6 +1702,147 @@ function updateUI(force) {
 setInterval(() => updateUI(false), 1000);
 
 // =====================================================================
+// Soundscape: all procedural (Web Audio), driven by the same live weather
+//  wind  : low whoosh + leaf rustle, scaled by wind speed and local gust puffs; bare winter trees whistle instead
+//  birds : Tennessee species, seasonal and time-of-day activity; silent in rain, strong wind, deep cold, at night
+//  night : crickets (May-Oct, rate from temperature via Dolbear's law), spring peepers, an occasional barred owl
+//  rain  : hiss + gutter drips by intensity; thunder rolls after each lightning flash; snow muffles everything
+// =====================================================================
+let sound = null;
+function createSound() {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {} // iOS: play even with the ringer switch on silent
+  const ctx = new AC();
+  const master = ctx.createGain(); master.gain.value = 0;
+  const muffle = ctx.createBiquadFilter(); muffle.type = 'lowpass'; muffle.frequency.value = 18000;
+  const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 3;
+  master.connect(muffle); muffle.connect(comp); comp.connect(ctx.destination);
+  // 6 s of pink noise, shared by every noise voice
+  const noise = ctx.createBuffer(1, ctx.sampleRate * 6, ctx.sampleRate);
+  { const d = noise.getChannelData(0); let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    for (let i = 0; i < d.length; i++) { const w = Math.random() * 2 - 1;
+      b0 = 0.99886 * b0 + w * 0.0555179; b1 = 0.99332 * b1 + w * 0.0750759; b2 = 0.969 * b2 + w * 0.153852; b3 = 0.8665 * b3 + w * 0.3104856; b4 = 0.55 * b4 + w * 0.5329522; b5 = -0.7616 * b5 - w * 0.016898;
+      d[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11; b6 = w * 0.115926; } }
+  const loopNoise = (type, freq, q) => {
+    const src = ctx.createBufferSource(); src.buffer = noise; src.loop = true; src.loopStart = Math.random() * 3; src.playbackRate.value = rnd(0.94, 1.06);
+    const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+    const g = ctx.createGain(); g.gain.value = 0;
+    src.connect(f); f.connect(g); g.connect(master); src.start(0, Math.random() * 5);
+    return { f, g };
+  };
+  const whoosh = loopNoise('lowpass', 320, 0.7);      // body of the wind
+  const rustle = loopNoise('bandpass', 2600, 0.6);    // leaves
+  const whistle = loopNoise('bandpass', 900, 6);      // bare branches
+  const rainHiss = loopNoise('highpass', 900, 0.5);
+  const rainRoar = loopNoise('lowpass', 700, 0.5);
+  const birdBus = ctx.createGain(); birdBus.gain.value = 0.55; birdBus.connect(master);
+  const bugBus = ctx.createGain(); bugBus.gain.value = 0.35; bugBus.connect(master);
+  const set = (param, v, tc = 0.6) => param.setTargetAtTime(v, ctx.currentTime, tc);
+  const panned = (bus, pan) => { const p = ctx.createStereoPanner ? ctx.createStereoPanner() : null; if (p) { p.pan.value = pan; p.connect(bus); return p; } return bus; };
+  // one tone: frequency glide f0 -> f1 with a soft envelope
+  function tone(t, f0, f1, dur, gain, out, type = 'sine') {
+    const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type;
+    o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + Math.min(0.02, dur * 0.25)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(out); o.start(t); o.stop(t + dur + 0.05);
+  }
+  // songs (rough stylizations of local species)
+  const SONGS = {
+    cardinal(t, out) { const n = 3 + (Math.random() * 4 | 0), up = Math.random() < 0.4; for (let i = 0; i < n; i++) up ? tone(t + i * 0.22, 2200, 4200, 0.16, 0.25, out) : tone(t + i * 0.24, 4000, 1900, 0.18, 0.25, out); },
+    wren(t, out) { for (let r = 0; r < 4; r++) { const b = t + r * 0.42; tone(b, 2900, 4300, 0.09, 0.22, out); tone(b + 0.12, 3600, 3200, 0.08, 0.2, out); tone(b + 0.24, 3000, 2500, 0.1, 0.22, out); } },
+    chickadee(t, out) { tone(t, 4100, 4000, 0.3, 0.2, out); tone(t + 0.36, 3300, 3250, 0.28, 0.18, out); tone(t + 0.75, 4200, 4100, 0.26, 0.18, out); tone(t + 1.08, 3150, 3100, 0.3, 0.16, out); },
+    jay(t, out) { const n = 2 + (Math.random() * 2 | 0); for (let i = 0; i < n; i++) { tone(t + i * 0.32, 1700, 1250, 0.24, 0.08, out, 'sawtooth'); tone(t + i * 0.32, 3400, 2500, 0.24, 0.05, out, 'square'); } },
+    sparrow(t, out) { tone(t, 3200, 3300, 0.35, 0.16, out); const n = 8 + (Math.random() * 6 | 0); for (let i = 0; i < n; i++) tone(t + 0.45 + i * 0.065, 5600, 5200, 0.04, 0.14, out); },
+    robin(t, out) { for (let i = 0; i < 6; i++) { const f = rnd(2300, 3200); tone(t + i * 0.3, f, f * rnd(0.85, 1.2), 0.18, 0.2, out); } },
+  };
+  const seasonBirds = { 1: 0.25, 2: 0.3, 3: 0.75, 4: 1, 5: 1, 6: 0.8, 7: 0.6, 8: 0.5, 9: 0.5, 10: 0.5, 11: 0.35, 12: 0.25 }[month];
+  const SPECIES = month >= 3 && month <= 6 ? ['cardinal', 'wren', 'chickadee', 'robin', 'sparrow', 'jay'] : ['cardinal', 'wren', 'chickadee', 'jay', 'cardinal'];
+  let st = { wind: 0, gustLocal: 0, rain: 0, snow: 0, cover: 0, tempF: 65, sunAlt: 30, morning: true, thunder: 0, duck: false };
+  let on = false, nextBird = 0, nextOwl = 0, crickets = [], dripAcc = 0;
+  for (let i = 0; i < 3; i++) crickets.push({ next: 0, pan: rnd(-0.8, 0.8), f: rnd(4300, 4900), jitter: rnd(0.9, 1.1) });
+  function birdActivity() {
+    if (st.sunAlt < -4) return 0;
+    const chorus = st.morning ? smooth(-6, 2, st.sunAlt) * (1 - smooth(18, 35, st.sunAlt)) : 0; // dawn chorus
+    const day = smooth(-2, 6, st.sunAlt) * 0.45;
+    return seasonBirds * Math.max(chorus * 1.4, day) * (1 - smooth(0.05, 0.25, st.rain)) * (1 - smooth(18, 30, st.wind)) * smooth(22, 35, st.tempF) * (1 - smooth(0.1, 0.4, st.snow));
+  }
+  function tick(dt) {
+    const now = ctx.currentTime;
+    // birds
+    const act = birdActivity();
+    if (act > 0.02 && now > nextBird) {
+      const out = panned(birdBus, rnd(-0.9, 0.9)), sp = SPECIES[(Math.random() * SPECIES.length) | 0];
+      SONGS[sp](now + 0.05, out);
+      nextBird = now + rnd(1.5, 6) / act;
+    }
+    // crickets (snowy tree cricket: chirps per minute ~ 4 x (F - 40)), spring peepers, owl
+    const night = 1 - smooth(-8, 2, st.sunAlt);
+    const cricketsOn = month >= 5 && month <= 10 && st.tempF > 55 && night > 0.3 && st.rain < 0.3;
+    if (cricketsOn) crickets.forEach(c => {
+      if (now < c.next) return;
+      const perMin = Math.max(20, 4 * (st.tempF - 40)) * c.jitter, out = panned(bugBus, c.pan);
+      for (let k = 0; k < 3; k++) tone(now + 0.02 + k * 0.028, c.f, c.f * 0.995, 0.018, 0.12 * night, out);
+      c.next = now + 60 / perMin;
+    });
+    if ((month === 3 || month === 4) && night > 0.5 && st.tempF > 45 && Math.random() < dt * 6) tone(now + 0.02, 2600, 3100, 0.12, 0.08, panned(bugBus, rnd(-1, 1)));
+    if (night > 0.7 && st.rain < 0.2 && st.wind < 18 && now > nextOwl) {
+      if (nextOwl > 0) { const out = panned(birdBus, rnd(-0.6, 0.6)); [0, 0.32, 0.62, 1.05, 1.9, 2.2, 2.5, 3.0].forEach((o, i) => tone(now + o, i % 4 === 3 ? 330 : 400, i % 4 === 3 ? 260 : 380, i % 4 === 3 ? 0.6 : 0.24, 0.12, out)); }
+      nextOwl = now + rnd(45, 150);
+    }
+    // rain drips on gutters and leaves
+    dripAcc += dt * st.rain * 26;
+    while (dripAcc > 1) { dripAcc -= 1;
+      const src = ctx.createBufferSource(); src.buffer = noise; const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = rnd(1800, 5200); f.Q.value = 6;
+      const g = ctx.createGain(), t = now + Math.random() * 0.05; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(rnd(0.15, 0.4), t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+      src.connect(f); f.connect(g); g.connect(panned(master, rnd(-0.9, 0.9))); src.start(t, Math.random() * 5, 0.08);
+    }
+  }
+  return {
+    get on() { return on; },
+    async start() { on = true; try { await ctx.resume(); } catch (e) {} set(master.gain, 0.8, 0.8); },
+    stop() { on = false; set(master.gain, 0, 0.3); setTimeout(() => { if (!on) ctx.suspend(); }, 1200); },
+    suspend() { ctx.suspend(); }, resume() { if (on) ctx.resume(); },
+    update(dt, s2) {
+      if (!on) return;
+      st = s2;
+      const w = Math.max(0, st.wind + st.gustLocal * 0.9), leaf = DENSITY;
+      set(whoosh.g.gain, 0.04 + Math.min(1.1, 0.0016 * w * w), 0.4);
+      set(whoosh.f.frequency, 240 + w * 9, 0.6);
+      set(rustle.g.gain, leaf * Math.min(0.9, 0.012 * w + 0.0009 * w * w) * (0.85 + 0.15 * Math.sin(ctx.currentTime * 7.3)), 0.15);
+      set(whistle.g.gain, (1 - leaf) * Math.min(0.25, 0.0002 * w * w), 0.5);
+      set(rainHiss.g.gain, Math.min(0.9, st.rain * 0.9), 0.8);
+      set(rainRoar.g.gain, Math.min(0.7, st.rain * st.rain * 0.8), 0.8);
+      set(muffle.frequency, 18000 - 12000 * st.cover, 2);
+      set(master.gain, st.duck ? 0.2 : 0.8, 0.5);
+      tick(dt);
+    },
+    thunder(dist) { // rumble arrives a few seconds after the flash
+      if (!on) return;
+      const t = ctx.currentTime + rnd(1.5, 3.5) + dist / 340, src = ctx.createBufferSource(); src.buffer = noise; src.playbackRate.value = 0.5;
+      const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(140, t + 4);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(1.4, t + 0.25); g.gain.exponentialRampToValueAtTime(0.5, t + 1.2); g.gain.exponentialRampToValueAtTime(0.0001, t + rnd(4, 7));
+      src.connect(f); f.connect(g); g.connect(master); src.start(t, Math.random() * 2, 8);
+    },
+  };
+}
+(function wireSound() {
+  const btn = document.getElementById('btnSound');
+  const show = on => { btn.setAttribute('aria-pressed', String(on)); btn.setAttribute('aria-label', on ? 'Sound on' : 'Sound off'); btn.title = on ? 'Sound on' : 'Sound off'; };
+  const enable = () => { if (!sound) sound = createSound(); if (sound) { sound.start(); show(true); } };
+  btn.addEventListener('click', () => {
+    if (sound && sound.on) { sound.stop(); show(false); store.set('yh-sound', '0'); }
+    else { enable(); store.set('yh-sound', '1'); }
+  });
+  if (store.get('yh-sound') === '1') { // browsers need a tap before audio: start on the first touch
+    show(true);
+    const first = () => { removeEventListener('pointerdown', first, true); removeEventListener('keydown', first, true); if (!(sound && sound.on)) enable(); };
+    addEventListener('pointerdown', first, true); addEventListener('keydown', first, true);
+  }
+  document.addEventListener('visibilitychange', () => { if (!sound) return; document.hidden ? sound.suspend() : sound.resume(); });
+})();
+
+// =====================================================================
 // Frame loop
 // =====================================================================
 const clock = new THREE.Clock();
@@ -1911,6 +2057,7 @@ function frame() {
   controls.target.x = clamp(controls.target.x, -30, 30); controls.target.z = clamp(controls.target.z, -25, 30); controls.target.y = clamp(controls.target.y, 0.5, 8);
   if (camera.position.y < 0.4) camera.position.y = 0.4;
   controls.update();
+  if (sound) sound.update(dt, { wind: cur.wind, gustLocal: excess * gustEnvAt(controls.target.x, controls.target.z) / 0.447, rain: cur.rain, snow: cur.snow, cover: cur.cover, tempF: cur.tempF, sunAlt, morning: sp.az < 0, thunder: cur.thunder, duck: radarState === 'open' });
   if (radarState !== 'open' || fly) renderer.render(scene, camera); // the map covers the screen; save the battery
   requestAnimationFrame(frame);
 }
