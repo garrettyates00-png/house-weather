@@ -1019,7 +1019,7 @@ const legacyMeshes = scene.children.slice(LEGACY_FROM).filter(o =>
 const GLB = { wet: [], glass: [], lantern: [], bulb: [], lamp: [], tail: [], loaded: false };
 (function loadModel() {
   if (!THREE.GLTFLoader) return;
-  new THREE.GLTFLoader().load('house.glb', gltf => {
+  new THREE.GLTFLoader().load('house.json', gltf => {
     const root = gltf.scene, drop = [];
     const WARM = new THREE.Color('#ffc070');
     root.traverse(o => {
@@ -1051,7 +1051,7 @@ const GLB = { wet: [], glass: [], lantern: [], bulb: [], lamp: [], tail: [], loa
     legacyMeshes.forEach(o => { o.visible = false; });
     GLB.loaded = true;
     window.__yh && (window.__yh.model = root);
-  }, undefined, err => console.warn('house.glb failed, keeping the code-built house', err));
+  }, undefined, err => console.warn('house model failed, keeping the code-built house', err));
 })();
 function updateModel(hl, dusk, wet) {
   if (!GLB.loaded) return;
