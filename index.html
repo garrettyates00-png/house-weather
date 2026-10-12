@@ -261,6 +261,7 @@ body.radar-on .card, body.radar-on .bar { opacity: 0; pointer-events: none; tran
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 (() => {
 'use strict';
@@ -757,6 +758,7 @@ function prismZ(profile, z0, z1, capMat, sideMat, uvSide) {
   return add(new THREE.Mesh(g, [capMat, sideMat]));
 }
 
+const LEGACY_FROM = scene.children.length; // code-built house and yard start here (fallback for the Blender model)
 // =====================================================================
 // House (dimensions in meters, estimated from the photos)
 // Front wall z=0, left gable wing front z=1.5, floor at y=0.35, walls 2.7 m
@@ -1007,6 +1009,59 @@ const streetLamps = [[-15, 25.3, 1], [21, 25.3, -1], [-12, 33.6, 1]].map(([x, z,
   const pool = glowPool(x, z + zf * 1.8, 11, 11, 0xffc56e, 0.03);
   return { light, halo, pool };
 });
+// =====================================================================
+// Blender model (house.glb): realistic house, garage, porches, hardscape,
+// beds, shrubs, fence and SUV. Same coordinates as this scene. Until it
+// loads (or if it fails) the code-built house above stays visible.
+// =====================================================================
+const legacyMeshes = scene.children.slice(LEGACY_FROM).filter(o =>
+  (o.isMesh || o.isInstancedMesh) && o !== ground && !(o.material && o.material.blending === THREE.AdditiveBlending));
+const GLB = { wet: [], glass: [], lantern: [], bulb: [], lamp: [], tail: [], loaded: false };
+(function loadModel() {
+  if (!THREE.GLTFLoader) return;
+  new THREE.GLTFLoader().load('house.glb', gltf => {
+    const root = gltf.scene, drop = [];
+    const WARM = new THREE.Color('#ffc070');
+    root.traverse(o => {
+      if (!o.isMesh) return;
+      if (/^Lawn/.test(o.name)) { drop.push(o); return; }   // the scene's own lawn and grass stay
+      o.castShadow = true; o.receiveShadow = true;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      mats.forEach(m => {
+        if (m.userData.yh) return; m.userData.yh = true;
+        ['map', 'normalMap', 'roughnessMap'].forEach(k => { if (m[k]) m[k].anisotropy = ANISO; });
+        const n = m.name;
+        if (n === 'Window Glass') { m.emissive = WARM.clone(); m.emissiveIntensity = 0; m.envMapIntensity = 1.4; GLB.glass.push(m); }
+        else if (n === 'Lantern Glass') { m.emissive = WARM.clone(); GLB.lantern.push(m); }
+        else if (n === 'Bulb') { m.emissive = new THREE.Color('#ffcf86'); GLB.bulb.push(m); }
+        else if (n === 'Lamp Head') { m.emissive = new THREE.Color('#ffd9a8'); GLB.lamp.push(m); }
+        else if (n === 'Tail Light') { GLB.tail.push(m); }
+        else if (n === 'Insect Screen') { m.depthWrite = false; }
+        const white = { 'Shingles': WHITE.roof, 'Driveway': WHITE.drive, 'Concrete': WHITE.drive, 'Pavers': WHITE.drive, 'Asphalt': WHITE.drive,
+          'Shrub Leaves': WHITE.bush, 'Mulch': WHITE.bush, 'Fence Rails': WHITE.bush }[n];
+        if (white) patch(m, { white, key: 'glb' + n.replace(/\W/g, '') });
+        const wetK = { 'Shingles': [0.3, 0.25], 'Driveway': [0.15, 0.38], 'Concrete': [0.15, 0.38], 'Pavers': [0.15, 0.32], 'Asphalt': [0.1, 0.35],
+          'Foundation': [0.3, 0.3], 'Siding': [0.65, 0.08], 'Fence Boards': [0.5, 0.3], 'Fence Rails': [0.5, 0.3] }[n];
+        if (n === 'Shingles') m.color.setRGB(0.9, 0.89, 0.86); // tame the blue cast under night sky light
+        if (wetK) GLB.wet.push({ m, rough: wetK[0], dark: wetK[1], base: m.color.clone() });
+      });
+    });
+    drop.forEach(o => o.parent.remove(o));
+    scene.add(root);
+    legacyMeshes.forEach(o => { o.visible = false; });
+    GLB.loaded = true;
+    window.__yh && (window.__yh.model = root);
+  }, undefined, err => console.warn('house.glb failed, keeping the code-built house', err));
+})();
+function updateModel(hl, dusk, wet) {
+  if (!GLB.loaded) return;
+  GLB.glass.forEach(m => { m.emissiveIntensity = hl * 0.9; });
+  GLB.lantern.forEach(m => { m.emissiveIntensity = hl * 2.2; });
+  GLB.bulb.forEach(m => { m.emissiveIntensity = hl * 2.4; });
+  GLB.lamp.forEach(m => { m.emissiveIntensity = dusk * 2.2; });
+  GLB.wet.forEach(w => { w.m.roughness = lerp(1, w.rough, wet); w.m.color.copy(w.base).multiplyScalar(1 - w.dark * wet); });
+}
+
 // neighbors (simple massing, kept quiet)
 
 
@@ -2116,6 +2171,7 @@ function frame() {
   M.asphalt.roughness = lerp(0.9, 0.12, wet); M.asphalt.color.copy(BASE.asphalt).multiplyScalar(1 - 0.35 * wet);
   M.roof.roughness = lerp(0.9, 0.35, wet); M.roof.color.copy(BASE.roof).multiplyScalar(1 - 0.25 * wet);
   M.siding.roughness = lerp(0.82, 0.55, wet * 0.6);
+  updateModel(hl, dusk, wet);
 
   // ---- falling leaves (autumn, wind-driven)
   if (AUTUMN > 0 && leafSources.length) {
